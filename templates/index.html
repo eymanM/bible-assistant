@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bible Search</title>
+    <style>
+        /* Basic styling for the body, headings, form, and results */
+        body {
+            font-family: Arial, sans-serif;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .formatted-text {
+            white-space: pre-wrap; /* Handle \n new lines */
+        }
+    </style>
+</head>
+<body>
+    <!-- Main heading of the page -->
+    <h1>Bible Search</h1>
+
+    <!-- Search form -->
+    <form id="search-form" action="/search" method="post">
+        <label for="query">Search Query:</label>
+        <input type="text" id="query" name="query" required>
+        <button type="submit">Search</button>
+    </form>
+
+    <!-- Container to display the results -->
+    <div id="results"></div>
+
+    <script>
+        // JavaScript to handle form submission and display results
+        document.getElementById('search-form').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent the default form submission behavior
+            const form = event.target;
+            const formData = new FormData(form);
+
+            // Send POST request to the server with the search query
+            const response = await fetch('/search', {
+                method: 'POST',
+                body: formData
+            });
+
+            // Parse the JSON response
+            const result = await response.json();
+
+            // Extract LLM content, Bible results, and commentary results from the response
+            const llmContent = result.llm_response.content || result.llm_response;
+            const bibleResults = result.bible_results.join('\n\n');
+            const commentaryResults = result.commentary_results.join('\n\n');
+
+            // Update the results container with formatted text
+            document.getElementById('results').innerHTML = `
+                <h2>LLM Response</h2>
+                <div class="formatted-text">${formatText(llmContent)}</div>
+                <h2>Bible Search Results</h2>
+                <pre>${bibleResults}</pre>
+                <h2>Commentary Results</h2>
+                <pre>${commentaryResults}</pre>
+            `;
+        });
+
+        // Function to format the LLM content (handle new lines and bold text)
+        function formatText(text) {
+            text = text.replace(/\*(.*?)\\n/g, '<b>$1</b>\n'); // Replace *text* with <b>text</b> for bold
+            text = text.replace(/\\n/g, '<br>'); // Replace \n with <br> for new lines
+            return text;
+        }
+    </script>
+</body>
+</html>
