@@ -1,12 +1,13 @@
 import os
-import asyncio
-from flask import Flask, request, jsonify
+import json
+import time
+from concurrent.futures import ThreadPoolExecutor
+from flask import Flask, request, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_openai import ChatOpenAI
 from constants import *
-import xml.etree.ElementTree as ET
 from flask_cors import CORS
 
 # Load environment variables
@@ -15,6 +16,17 @@ load_dotenv()
 # Initialize Flask app and enable CORS
 app = Flask(__name__)
 CORS(app)
+
+# Book lists for filtering
+OT_BOOKS = {
+    'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 
+    'EZR', 'NEH', 'EST', 'JOB', 'PSA', 'PRO', 'ECC', 'SNG', 'ISA', 'JER', 'LAM', 'EZK', 'DAN', 'HOS', 
+    'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'
+}
+NT_BOOKS = {
+    'MAT', 'MRK', 'LUK', 'JHN', 'ACT', 'ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', 
+    '1TI', '2TI', 'TIT', 'PHM', 'HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD', 'REV'
+}
 
 # Set up the language model
 def setup_llm():
@@ -35,40 +47,21 @@ def setup_db(persist_directory, query_instruction):
         embedding_function=embeddings,
     )
 
-# Load XML data
-def load_xml_data(input_file):
-    tree = ET.parse(input_file)
-    return tree.getroot()
-
-# Load lexicon XML data
-def load_lexicon_xml(input_file):
-    lexicon = {}
-    root = load_xml_data(input_file)
-    ns = {'tei': 'http://www.crosswire.org/2008/TEIOSIS/namespace'}
-
-    for entry in root.findall('tei:entry', ns):
-        entry_id = entry.get('n')
-        orth_element = entry.find('tei:orth', ns)
-        orth_text = orth_element.text if orth_element is not None else None
-        defs = {def_element.get('role'): def_element.text for def_element in entry.findall('tei:def', ns)}
-        lexicon[entry_id] = {'orth': orth_text, 'definitions': defs}
-
-    return lexicon
-
-# Perform commentary search asynchronously
-async def perform_commentary_search_async(commentary_db, search_query):
+# Perform commentary search synchronously
+def perform_commentary_search(commentary_db, search_query):
     search_results = []
-    loop = asyncio.get_running_loop()
+    
+    # We can use a thread pool for the individual author searches if we want even more parallelism,
+    # but simplest is to just run them sequentially or in the main pool. 
+    # Let's keep it simple: iterate sequentially here since this function is already running in a thread.
     for author in CHURCH_FATHERS:
         try:
-            results = await loop.run_in_executor(
-                None,
-                commentary_db.similarity_search_with_relevance_scores,
+            results = commentary_db.similarity_search_with_relevance_scores(
                 search_query,
-                1,
-                {FATHER_NAME: author},
+                k=1,
+                filter={FATHER_NAME: author}
             )
-            if results and results[0][1] > 0.83:
+            if results and results[0][1] > 0.82:
                 search_results.extend(results)
         except Exception as exc:
             print(f"Author search generated an exception for {author}: {exc}")
@@ -115,41 +108,101 @@ def format_bible_results(bible_search_results):
     return formatted_results
 
 # Initialize the LLM, Bible database, and commentary database
+# Using global variables for simplicity in this script
 llm = setup_llm()
 bible_db = setup_db(DB_DIR, DB_QUERY)
 commentary_db = setup_db(COMMENTARY_DB_DIR, COMMENTARY_DB_QUERY)
-bible_xml = load_xml_data(BIBLE_XML_FILE)
+
 
 @app.route('/search', methods=['POST'])
-async def search():
-    search_query = request.json['query']
-    loop = asyncio.get_running_loop()
+def search():
+    data = request.get_json(silent=True) or {}
+    search_query = data.get('query')
+    settings = data.get('settings', {})
     
-    bible_search_task = loop.run_in_executor(
-        None,
-        bible_db.similarity_search_with_relevance_scores,
-        search_query,
-        2
-    )
-    commentary_search_task = perform_commentary_search_async(commentary_db, search_query)
-    
-    bible_search_results, commentary_search_results = await asyncio.gather(
-        bible_search_task,
-        commentary_search_task
-    )
-    
-    llm_query = BIBLE_SUMMARY_PROMPT.format(
-        topic=search_query, 
-        passages="\n".join([f"Source: {r[0].metadata['book']}\nContent: {r[0].page_content}" for r in bible_search_results])
-    )
-    llm_response = llm.invoke(llm_query)
-    llm_response_content = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+    # Settings parsing
+    include_ot = settings.get('oldTestament', True)
+    include_nt = settings.get('newTestament', True)
+    include_commentary = settings.get('commentary', True)
+    include_insights = settings.get('insights', True)
 
-    return jsonify({
-        'bible_results': format_bible_results(bible_search_results),
-        'commentary_results': format_commentary_results(commentary_search_results),
-        'llm_response': llm_response_content
-    })
+    if not search_query:
+        return jsonify({'error': 'No query provided'}), 400
+
+    # Sync search execution using ThreadPoolExecutor for parallelism
+    bible_hits = []
+    commentary_hits = []
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_bible = executor.submit(
+            bible_db.similarity_search_with_relevance_scores, 
+            search_query, 
+            10
+        )
+        
+        future_commentary = None
+        if include_commentary:
+            future_commentary = executor.submit(
+                perform_commentary_search, 
+                commentary_db, 
+                search_query
+            )
+        
+        # Wait for results
+        try:
+            bible_hits = future_bible.result()
+        except Exception as e:
+            print(f"Error in bible search: {e}")
+            
+        if future_commentary:
+            try:
+                commentary_hits = future_commentary.result()
+            except Exception as e:
+                print(f"Error in commentary search: {e}")
+
+    # Filter Bible Results
+    filtered_bible = []
+    for hit in bible_hits:
+        book = hit[0].metadata.get('book')
+        if not book: 
+            continue
+        if include_ot and book in OT_BOOKS:
+            filtered_bible.append(hit)
+        elif include_nt and book in NT_BOOKS:
+            filtered_bible.append(hit)
+    
+    # Limit to top 2 results
+    filtered_bible = filtered_bible[:2]
+
+    def generate():
+        # 1. Send Search Results
+        formatted_bible = format_bible_results(filtered_bible)
+        formatted_commentary = format_commentary_results(commentary_hits)
+        
+        results_data = json.dumps({
+            'bible_results': formatted_bible,
+            'commentary_results': formatted_commentary
+        })
+        yield f"event: results\ndata: {results_data}\n\n"
+
+        # 2. Prepare Prompt and Stream LLM if insights enabled
+        if include_insights:
+            passages = "\n".join([f"Source: {r[0].metadata['book']}\nContent: {r[0].page_content}" for r in filtered_bible])
+            if not passages and not formatted_commentary:
+                passages = "No relevant passages found."
+
+            llm_query = BIBLE_SUMMARY_PROMPT.format(topic=search_query, passages=passages)
+
+            # 3. Stream LLM works synchronously now
+            for chunk in llm.stream(llm_query):
+                content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+                if content:
+                    data = json.dumps({'token': content})
+                    yield f"event: token\ndata: {data}\n\n"
+        
+        yield "event: end\ndata: {}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1')
