@@ -52,6 +52,8 @@ The **Bible Assistant API** is a powerful semantic search engine and AI-powered 
     Create a `.env` file in the root directory (see `.env.example` if available) and add your keys:
     ```env
     OPENAI_API_KEY=your_openai_key
+    ENV=dev
+    PORT=5000
     ```
 
 5.  **Run the application:**
@@ -105,3 +107,7 @@ Ensure the frontend is configured to point to `http://127.0.0.1:5000` (or your d
 ## 📄 License
 
 [MIT](LICENSE)
+
+## ✨ About the Author
+
+[![](https://img.shields.io/badge/GitHub-eymanM-181717?style=for-the-badge&logo=github)](https://github.com/eymanM)

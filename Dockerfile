@@ -19,4 +19,4 @@ ENV FLASK_APP=app.py
 ENV PYTHONUNBUFFERED=1
 
 # Run app.py when the container launches
-CMD ["python", "app.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
