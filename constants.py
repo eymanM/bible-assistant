@@ -14,8 +14,10 @@ COMMENTARY_DB_QUERY = "Represent the Religious bible commentary text for semanti
 
 # Prompts
 BIBLE_SUMMARY_PROMPT = """
-The topic for analysis is {topic}. Here are the Bible passages and commentaries: {passages}.  Please provide the following:
+The topic for analysis is {topic}. Here are the Bible passages and commentaries:
+{passages}
 
+Please provide the following:
 * **Key Insights:** Summarize the main points made about the topic within these specific verses.
 * **Connections:** How do the verses reinforce, complement, or potentially challenge each other's perspective on the topic?
 * **Theological Significance:** How do these insights connect to the broader story of God's redemption (as seen in the gospel message) across the Old and New Testaments?
@@ -31,8 +33,10 @@ Please provide a concise summary of the key insights and interpretations offered
 {content}"""
 
 BIBLE_SUMMARY_PROMPT_PL = """
-Tematem analizy jest {topic}. Oto fragmenty Biblii i komentarze: {passages}. Proszę o wykonanie następujących kroków:
+Tematem analizy jest {topic}. Oto fragmenty Biblii i komentarze:
+{passages}
 
+Proszę o wykonanie następujących kroków:
 * **Kluczowe Spostrzeżenia:** Podsumuj główne punkty dotyczące tematu w ramach tych konkretnych wersetów.
 * **Powiązania:** W jaki sposób te wersety wzmacniają, uzupełniają lub potencjalnie podważają nawzajem swoje perspektywy na dany temat?
 * **Znaczenie Teologiczne:** Jak te spostrzeżenia łączą się z szerszą historią Bożego odkupienia (widoczną w przesłaniu ewangelii) w Starym i Nowym Testamencie?

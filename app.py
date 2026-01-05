@@ -186,13 +186,13 @@ def search():
     data = request.get_json(silent=True) or {}
     search_query = data.get('query')
     settings = data.get('settings', {})
-    
+
     # Settings parsing
     include_ot = settings.get('oldTestament', True)
     include_nt = settings.get('newTestament', True)
     include_commentary = settings.get('commentary', True)
     include_insights = settings.get('insights', True)
-    language = data.get('language', 'en')
+    language = settings.get('language', 'en')
 
     if not search_query:
         return jsonify({'error': 'No query provided'}), 400
