@@ -51,6 +51,9 @@ COMMENTARY_SUMMARY_PROMPT_PL = """Na podstawie zapytania użytkownika, tematem j
 Proszę o zwięzłe podsumowanie kluczowych spostrzeżeń i interpretacji zawartych w komentarzach Ojców Kościoła na powyższy temat. Skup się wyłącznie na treści tych konkretnych komentarzy, podkreślając, w jak wnoszą one wkład w zrozumienie tekstów biblijnych. Uwzględnij ojca kościoła i tekst źródłowy.
 {content}"""
 
+
+QUERY_TRANSLATION_PROMPT = "Translate the following Polish search query into English. Return only the translated text, nothing else. Query: {query}"
+
 # Church Fathers
 CHURCH_FATHERS = [
     "Augustine of Hippo",
