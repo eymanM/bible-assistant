@@ -30,7 +30,7 @@ The **Bible Assistant API** is a powerful semantic search engine and AI-powered 
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/eymanM/bible-assistant.git
     cd bible-assistant
     ```
 
@@ -98,7 +98,7 @@ python -m pytest tests/
 This API is designed to work with a modern frontend application. 
 The official frontend implementation is built with **Next.js** and can be found here:
 
-**[Bible Assistant Frontend](https://github.com/eymanM/sb1-hhrkk6)** *(Replace with actual URL if different)*
+**[Bible Assistant Frontend](https://github.com/eymanM/bible-assistant-ui)**
 
 Ensure the frontend is configured to point to `http://127.0.0.1:5000` (or your deployed URL).
 
