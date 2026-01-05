@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Python/Pip
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment variables
+.env
+
+# VS Code
+.vscode/
+
+# Testing
+tests/
+.pytest_cache/
+coverage.xml
+.coverage
