@@ -79,7 +79,7 @@ def perform_commentary_search(commentary_db, search_query):
 # Format commentary results
 def format_commentary_results(commentary_results):
     return [
-        f"Source: {r[0].metadata[FATHER_NAME]}{r[0].metadata['book']} {r[0].metadata[SOURCE_TITLE]}\nContent: {r[0].page_content}"
+        f"Source: {r[0].metadata[FATHER_NAME]} {r[0].metadata['book']} {r[0].metadata[SOURCE_TITLE]}\nContent: {r[0].page_content}"
         for r in commentary_results
     ]
 
