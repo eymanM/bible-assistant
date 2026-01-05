@@ -17,18 +17,21 @@ load_dotenv()
 # Initialize Flask app and enable CORS
 app = Flask(__name__)
 CORS(app)
-swagger = Swagger(app)
+template = {
+    "info": {
+        "title": "Bible Assistant API",
+        "description": "Semantic search and AI insights for the Bible.",
+        "contact": {
+            "name": "eymanM",
+            "url": "https://github.com/eymanM",
+        },
+        "version": "1.0.0"
+    }
+}
+swagger = Swagger(app, template=template)
 
-# Book lists for filtering
-OT_BOOKS = {
-    'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 
-    'EZR', 'NEH', 'EST', 'JOB', 'PSA', 'PRO', 'ECC', 'SNG', 'ISA', 'JER', 'LAM', 'EZK', 'DAN', 'HOS', 
-    'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'
-}
-NT_BOOKS = {
-    'MAT', 'MRK', 'LUK', 'JHN', 'ACT', 'ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', 
-    '1TI', '2TI', 'TIT', 'PHM', 'HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD', 'REV'
-}
+
+# Book lists are now imported from constants.py
 
 # Set up the language model
 def setup_llm():
@@ -165,6 +168,10 @@ def search():
                 insights:
                   type: boolean
                   default: true
+                language:
+                  type: string
+                  default: "en"
+                  enum: ["en", "pl"]
     responses:
       200:
         description: Stream of search results and AI insights
@@ -185,6 +192,7 @@ def search():
     include_nt = settings.get('newTestament', True)
     include_commentary = settings.get('commentary', True)
     include_insights = settings.get('insights', True)
+    language = data.get('language', 'en')
 
     if not search_query:
         return jsonify({'error': 'No query provided'}), 400
@@ -248,10 +256,16 @@ def search():
         # 2. Prepare Prompt and Stream LLM if insights enabled
         if include_insights:
             passages = "\n".join([f"Source: {r[0].metadata['book']}\nContent: {r[0].page_content}" for r in filtered_bible])
-            if not passages and not formatted_commentary:
+            
+            if formatted_commentary:
+                commentary_text = "\n".join(formatted_commentary)
+                passages += f"\n\nCommentaries:\n{commentary_text}"
+
+            if not passages:
                 passages = "No relevant passages found."
 
-            llm_query = BIBLE_SUMMARY_PROMPT.format(topic=search_query, passages=passages)
+            summary_prompt = BIBLE_SUMMARY_PROMPT_PL if language == 'pl' else BIBLE_SUMMARY_PROMPT
+            llm_query = summary_prompt.format(topic=search_query, passages=passages)
 
             # 3. Stream LLM works synchronously now
             for chunk in llm.stream(llm_query):
@@ -265,4 +279,5 @@ def search():
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1')
+    is_dev = os.environ.get('ENV') == 'dev'
+    app.run(debug=is_dev, host='127.0.0.1')

@@ -14,7 +14,7 @@ COMMENTARY_DB_QUERY = "Represent the Religious bible commentary text for semanti
 
 # Prompts
 BIBLE_SUMMARY_PROMPT = """
-The topic for analysis is {topic}. Here are the Bible passages: {passages}.  Please provide the following:
+The topic for analysis is {topic}. Here are the Bible passages and commentaries: {passages}.  Please provide the following:
 
 * **Key Insights:** Summarize the main points made about the topic within these specific verses.
 * **Connections:** How do the verses reinforce, complement, or potentially challenge each other's perspective on the topic?
@@ -23,11 +23,28 @@ The topic for analysis is {topic}. Here are the Bible passages: {passages}.  Ple
 
 Do not format the response. Give short relatively short responses.
 User do not know about the included passages so do no mention about the verses.
-Give a general summary of the topic and the insights from the verses.
+Give a general summary of the topic and the insights from the verses in English.
 """
 
 COMMENTARY_SUMMARY_PROMPT = """Based on the user's search query, the topic is: {topic}
 Please provide a concise summary of the key insights and interpretations offered in the following Church Fathers' commentaries on the topic above. Focus only on the content in these specific commentaries, highlighting how they contribute to understanding the scriptural texts. Include the church father and source text.
+{content}"""
+
+BIBLE_SUMMARY_PROMPT_PL = """
+Tematem analizy jest {topic}. Oto fragmenty Biblii i komentarze: {passages}. Proszę o wykonanie następujących kroków:
+
+* **Kluczowe Spostrzeżenia:** Podsumuj główne punkty dotyczące tematu w ramach tych konkretnych wersetów.
+* **Powiązania:** W jaki sposób te wersety wzmacniają, uzupełniają lub potencjalnie podważają nawzajem swoje perspektywy na dany temat?
+* **Znaczenie Teologiczne:** Jak te spostrzeżenia łączą się z szerszą historią Bożego odkupienia (widoczną w przesłaniu ewangelii) w Starym i Nowym Testamencie?
+* **Praktyczne Zastosowanie:** Jakie działania lub zmiany w zrozumieniu mogą być inspirowane wspólną refleksją nad tymi fragmentami?
+
+Nie formatuj odpowiedzi. Udzielaj stosunkowo krótkich odpowiedzi.
+Użytkownik nie zna dołączonych fragmentów, więc nie wspominaj o wersetach bezpośrednio.
+Podaj ogólne podsumowanie tematu i spostrzeżenia z wersetów po Polsku.
+"""
+
+COMMENTARY_SUMMARY_PROMPT_PL = """Na podstawie zapytania użytkownika, tematem jest: {topic}
+Proszę o zwięzłe podsumowanie kluczowych spostrzeżeń i interpretacji zawartych w komentarzach Ojców Kościoła na powyższy temat. Skup się wyłącznie na treści tych konkretnych komentarzy, podkreślając, w jak wnoszą one wkład w zrozumienie tekstów biblijnych. Uwzględnij ojca kościoła i tekst źródłowy.
 {content}"""
 
 # Church Fathers
@@ -43,17 +60,7 @@ CHURCH_FATHERS = [
     "Origen of Alexandria"
 ]
 
-# Test Queries
-DEFAULT_QUERIES = [
-    "What did Jesus say about eternal life?",
-    #"Divine agape and  God's love for humanity",
-    #"What will happen during the end times?",
-    #"What is the work and nature of the Holy Spirit in our life?",
-    #"Experiencing God's presence: Comfort and renewal in the Christian life",
-]
-
 # Other constants
-UNSAFE_PASSWORD = "x"
 LLM_ERROR = "No API token found, so LLM support is disabled."
 
 FATHER_NAME = "father_name"
@@ -61,6 +68,17 @@ SOURCE_TITLE = "source_title"
 CHAPTER = "chapter"
 
 
+
+OT_BOOKS = {
+    'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 
+    'EZR', 'NEH', 'EST', 'JOB', 'PSA', 'PRO', 'ECC', 'SNG', 'ISA', 'JER', 'LAM', 'EZK', 'DAN', 'HOS', 
+    'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'
+}
+
+NT_BOOKS = {
+    'MAT', 'MRK', 'LUK', 'JHN', 'ACT', 'ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', 
+    '1TI', '2TI', 'TIT', 'PHM', 'HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD', 'REV'
+}
 
 BOOK_NAMES = {
     'GEN': 'Genesis',
