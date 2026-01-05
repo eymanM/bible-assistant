@@ -36,9 +36,13 @@ swagger = Swagger(app, template=template)
 # Set up the language model
 def setup_llm():
     try:
-        return ChatOpenAI(max_tokens=MAX_TOKENS, model_name=OPEN_AI_LLM_MODEL_NAME)
+        return ChatOpenAI(
+            max_tokens=MAX_TOKENS, 
+            model_name=OPEN_AI_LLM_MODEL_NAME,
+            openai_api_key=os.getenv("OPENAI_API_KEY")
+        )
     except Exception as e:
-        print(LLM_ERROR)
+        print(f"{LLM_ERROR}: {e}")
         return None
 
 # Set up the database
