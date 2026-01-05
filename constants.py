@@ -1,13 +1,11 @@
 # File paths
 DB_DIR = "./data/db"
 COMMENTARY_DB_DIR = "./data/commentary_db"
-BIBLE_XML_FILE = "./data/engwebp_vpl.xml"
-LEXICON_XML_FILE = "./data/dodson.xml"
 
 # Model names
 EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
 ANTROPIC_LLM_MODEL_NAME = "claude-3-5-sonnet-20241022"
-OPEN_AI_LLM_MODEL_NAME = "gpt-4o-mini"
+OPEN_AI_LLM_MODEL_NAME = "gpt-4.1-nano"
 MAX_TOKENS = 4096
 
 # Query Instructions
