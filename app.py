@@ -9,6 +9,7 @@ from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_openai import ChatOpenAI
 from constants import *
 from flask_cors import CORS
+from flasgger import Swagger
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +17,7 @@ load_dotenv()
 # Initialize Flask app and enable CORS
 app = Flask(__name__)
 CORS(app)
+swagger = Swagger(app)
 
 # Book lists for filtering
 OT_BOOKS = {
@@ -76,6 +78,8 @@ def format_commentary_results(commentary_results):
 
 # Format Bible search results
 def format_verse_numbers(verse_nums_str):
+    if not verse_nums_str:
+        return ""
     nums = sorted([int(n) for n in verse_nums_str.split(',')])
     if not nums:
         return ""
@@ -114,8 +118,64 @@ bible_db = setup_db(DB_DIR, DB_QUERY)
 commentary_db = setup_db(COMMENTARY_DB_DIR, COMMENTARY_DB_QUERY)
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health Check Endpoint
+    ---
+    responses:
+      200:
+        description: Service is healthy
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: healthy
+    """
+    return jsonify({'status': 'healthy'}), 200
+
 @app.route('/search', methods=['POST'])
 def search():
+    """
+    Semantic Search Endpoint
+    ---
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            query:
+              type: string
+              example: "What is love?"
+            settings:
+              type: object
+              properties:
+                oldTestament:
+                  type: boolean
+                  default: true
+                newTestament:
+                  type: boolean
+                  default: true
+                commentary:
+                  type: boolean
+                  default: true
+                insights:
+                  type: boolean
+                  default: true
+    responses:
+      200:
+        description: Stream of search results and AI insights
+        content:
+          text/event-stream:
+            schema:
+              type: string
+              example: "event: results..."
+      400:
+        description: Missing query parameter
+    """
     data = request.get_json(silent=True) or {}
     search_query = data.get('query')
     settings = data.get('settings', {})
