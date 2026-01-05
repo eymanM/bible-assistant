@@ -201,6 +201,21 @@ def search():
     if not search_query:
         return jsonify({'error': 'No query provided'}), 400
 
+    if len(search_query) > 100:
+        return jsonify({'error': 'Query too long. Maximum 50 characters allowed.'}), 400
+
+    # Translate Polish query to English
+    if language == 'pl' and llm:
+        try:
+            translation_query = QUERY_TRANSLATION_PROMPT.format(query=search_query)
+            translated_response = llm.invoke(translation_query)
+            # Handle different response types from langchain
+            translated_text = translated_response.content if hasattr(translated_response, 'content') else str(translated_response)
+            search_query = translated_text.strip()
+            print(f"Translated query: {search_query}")
+        except Exception as e:
+            print(f"Translation failed: {e}")
+
     # Sync search execution using ThreadPoolExecutor for parallelism
     bible_hits = []
     commentary_hits = []
