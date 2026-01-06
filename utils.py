@@ -5,6 +5,7 @@ from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
 from concurrent.futures import ThreadPoolExecutor
+import logging
 
 from constants import *
 from bible_lookup import get_bible_text
@@ -28,7 +29,7 @@ def setup_llms():
         )
         return llm_insights, llm_translate
     except Exception as e:
-        print(f"{LLM_ERROR}: {e}")
+        logging.error(f"{LLM_ERROR}: {e}")
         return None, None
 
 # Set up the database
@@ -56,7 +57,7 @@ def perform_commentary_search(commentary_db, search_query):
             if results and results[0][1] > 0.83:
                 search_results.extend(results)
         except Exception as exc:
-            print(f"Author search generated an exception for {author}: {exc}")
+            logging.error(f"Author search generated an exception for {author}: {exc}")
     return search_results
 
 def translate_texts(texts, llm):
@@ -81,12 +82,12 @@ def translate_texts(texts, llm):
         if isinstance(translated_texts, list) and len(translated_texts) == len(texts):
             return translated_texts
         else:
-            print("Translation returned mismatching list length or invalid format.")## odaj tekst do logow
-            print(translated_texts)
+            logging.error("Translation returned mismatching list length or invalid format.")## odaj tekst do logow
+            logging.error(translated_texts)
             return texts
             
     except Exception as e:
-        print(f"Error translating commentaries: {e}")
+        logging.error(f"Error translating commentaries: {e}")
         return texts
 
 def search_and_format_commentaries(commentary_db, search_query, language, llm_translate):

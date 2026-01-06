@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 from flask_cors import CORS
 from flasgger import Swagger
+import logging
 
 from constants import *
 from utils import (
@@ -125,7 +126,7 @@ def search():
             translated_text = translated_response.content if hasattr(translated_response, 'content') else str(translated_response)
             search_query = translated_text.strip()
         except Exception as e:
-            print(f"Translation failed: {e}")
+            logging.error(f"Translation failed: {e}")
 
     # Parallel Execution
     # We submit both the Bible search and the *combined* Commentary Search+Translation
@@ -154,13 +155,13 @@ def search():
         try:
             bible_hits = future_bible.result()
         except Exception as e:
-            print(f"Error in bible search: {e}")
+            logging.error(f"Error in bible search: {e}")
             
         if future_commentary:
             try:
                 formatted_commentary = future_commentary.result()
             except Exception as e:
-                print(f"Error in commentary search/translation: {e}")
+                logging.error(f"Error in commentary search/translation: {e}")
 
     # Filter Bible Results
     filtered_bible = []
