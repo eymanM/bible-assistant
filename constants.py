@@ -67,6 +67,18 @@ CHURCH_FATHERS = [
     "Origen of Alexandria"
 ]
 
+CHURCH_FATHERS_PL = {
+    "Augustine of Hippo": "Augustyn z Hippony",
+    "Athanasius of Alexandria": "Atanazy Wielki",
+    "Basil of Caesarea": "Bazyli Wielki",
+    "Gregory of Nazianzus": "Grzegorz z Nazjanzu",
+    "Gregory of Nyssa": "Grzegorz z Nyssy",
+    "Cyril of Alexandria": "Cyryl Aleksandryjski",
+    "Irenaeus": "Ireneusz z Lyonu",
+    "Cyprian": "Cyprian z Kartaginy",
+    "Origen of Alexandria": "Orygenes"
+}
+
 # Other constants
 LLM_ERROR = "No API token found, so LLM support is disabled."
 
@@ -155,3 +167,80 @@ BOOK_NAMES = {
     'JUD': 'Jude',
     'REV': 'Revelation'
 }
+
+BOOK_NAMES_PL = {
+    'GEN': 'Rodzaju',
+    'EXO': 'Wyjścia',
+    'LEV': 'Kapłańska',
+    'NUM': 'Liczb',
+    'DEU': 'Powtórzonego Prawa',
+    'JOS': 'Jozuego',
+    'JDG': 'Sędziów',
+    'RUT': 'Rut',
+    '1SA': '1 Samuela',
+    '2SA': '2 Samuela',
+    '1KI': '1 Królewska',
+    '2KI': '2 Królewska',
+    '1CH': '1 Kronik',
+    '2CH': '2 Kronik',
+    'EZR': 'Ezdrasza',
+    'NEH': 'Nehemiasza',
+    'EST': 'Estery',
+    'JOB': 'Hioba',
+    'PSA': 'Psalmów',
+    'PRO': 'Przysłów',
+    'ECC': 'Kaznodziei',
+    'SNG': 'Pieśń nad Pieśniami',
+    'ISA': 'Izajasza',
+    'JER': 'Jeremiasza',
+    'LAM': 'Lamentacje',
+    'EZK': 'Ezechiela',
+    'DAN': 'Daniela',
+    'HOS': 'Ozeasza',
+    'JOL': 'Joela',
+    'AMO': 'Amosa',
+    'OBA': 'Abdiasza',
+    'JON': 'Jonasza',
+    'MIC': 'Micheasza',
+    'NAM': 'Nahuma',
+    'HAB': 'Habakuka',
+    'ZEP': 'Sofoniasza',
+    'HAG': 'Aggeusza',
+    'ZEC': 'Zachariasza',
+    'MAL': 'Malachiasza',
+    'MAT': 'Mateusza',
+    'MRK': 'Marka',
+    'LUK': 'Łukasza',
+    'JHN': 'Jana',
+    'ACT': 'Dzieje Apostolskie',
+    'ROM': 'Rzymian',
+    '1CO': '1 Koryntian',
+    '2CO': '2 Koryntian',
+    'GAL': 'Galatów',
+    'EPH': 'Efezjan',
+    'PHP': 'Filipian',
+    'COL': 'Kolosan',
+    '1TH': '1 Tesaloniczan',
+    '2TH': '2 Tesaloniczan',
+    '1TI': '1 Tymoteusza',
+    '2TI': '2 Tymoteusza',
+    'TIT': 'Tytusa',
+    'PHM': 'Filemona',
+    'HEB': 'Hebrajczyków',
+    'JAS': 'Jakuba',
+    '1PE': '1 Piotra',
+    '2PE': '2 Piotra',
+    '1JN': '1 Jana',
+    '2JN': '2 Jana',
+    '3JN': '3 Jana',
+    'JUD': 'Judy',
+    'REV': 'Objawienie'
+}
+
+COMMENTARY_TRANSLATION_PROMPT = """
+You are a helpful assistant that translates theological texts from English to Polish.
+Translate the following list of commentary excerpts into Polish.
+Maintain the theological meaning, tone, and historical context.
+Return ONLY a valid JSON list of strings, matching the order of the input.
+Input: {texts}
+"""

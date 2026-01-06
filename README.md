@@ -22,7 +22,7 @@ The **Bible Assistant API** is a powerful semantic search engine and AI-powered 
 
 ### Prerequisites
 
-*   Python 3.12+
+*   Python 3.8+
 *   OpenAI API Key
 *   Git
 
