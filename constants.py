@@ -240,6 +240,8 @@ BOOK_NAMES_PL = {
 COMMENTARY_TRANSLATION_PROMPT = """
 You are a helpful assistant that translates theological texts from English to Polish.
 Translate the following list of commentary excerpts into Polish.
+Input is a JSON list of strings. Output MUST be a list of strings with the exact same number of elements as the input.
+Maintain the order.
 Maintain the theological meaning, tone, and historical context.
 Input: {texts}
 """
