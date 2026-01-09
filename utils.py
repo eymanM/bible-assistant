@@ -92,7 +92,7 @@ def get_db_connection():
 
 
 class TranslationBatch(BaseModel):
-    translations: List[str] = Field(description="A list of translated texts in Polish, corresponding exactly to the input texts.")
+    translations: List[str] = Field(description="A list of translated texts in Polish. The output list MUST have exactly the same number of elements as the input list. Each input string must have a corresponding translated string at the same index.")
 
 def translate_texts(texts, llm):
     """Translates a list of texts to Polish using the LLM, with DB caching and Structured Output."""
@@ -139,22 +139,33 @@ def translate_texts(texts, llm):
             # Prepare batch prompt
             prompt = COMMENTARY_TRANSLATION_PROMPT.format(texts=json.dumps(missing_texts))
             
-            # Use Structured Output
+            # Use Structured Output (strict=True not supported by current env)
             structured_llm = llm.with_structured_output(TranslationBatch)
             batch_result = structured_llm.invoke(prompt)
             
-            translated_batch = batch_result.translations if batch_result else []
+            if isinstance(batch_result, dict):
+                translated_batch = batch_result.get('translations', [])
+            elif batch_result and hasattr(batch_result, 'translations'):
+                translated_batch = batch_result.translations
+            else:
+                translated_batch = []
             
             # Verify length
             if len(translated_batch) != len(missing_texts):
-                logging.warning(f"Translation length mismatch: got {len(translated_batch)}, expected {len(missing_texts)}. Using raw list or fallback.")
-                # If mismatch, we might need to fallback or just map what we have. 
-                # Ideally with structured output this shouldn't happen often.
-                # Padding with original text if shorter
-                while len(translated_batch) < len(missing_texts):
-                    translated_batch.append(missing_texts[len(translated_batch)])
-                # Truncating if longer
-                translated_batch = translated_batch[:len(missing_texts)]
+                logging.warning(f"Translation length mismatch: got {len(translated_batch)}, expected {len(missing_texts)}. Falling back to individual translation.")
+                
+                # Fallback: Translate one by one
+                translated_batch = []
+                for text in missing_texts:
+                    try:
+                        # Simple individual prompt
+                        single_prompt = f"Translate this theological text to Polish. Maintain tone and meaning. Text: {text}"
+                        response = llm.invoke(single_prompt)
+                        t_text = response.content if hasattr(response, 'content') else str(response)
+                        translated_batch.append(t_text.strip())
+                    except Exception as inner_e:
+                        logging.error(f"Fallback translation failed for text: {inner_e}")
+                        translated_batch.append(text) # Keep original on error
 
             # Save to DB
             conn = get_db_connection()
