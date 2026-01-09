@@ -9,13 +9,12 @@ import logging
 
 from constants import *
 from bible_lookup import get_bible_text
+from langchain_core.pydantic_v1 import BaseModel, Field
+from typing import List
 
 # Initialize LLMs
 def setup_llms():
     try:
-        # User requested specific models:
-        # - gpt-4.1-mini for AI insights
-        # - gpt-4.1-nano for translations
         llm_insights = ChatOpenAI(
             max_tokens=MAX_TOKENS, 
             model_name="gpt-4.1-mini",
@@ -45,9 +44,8 @@ def setup_db(persist_directory, query_instruction):
 
 def perform_commentary_search(commentary_db, search_query):
     search_results = []
-    # Optimization: Search Church Fathers in parallel if simple iteration is too slow.
-    # For now, keeping it simple as Chroma is usually fast enough for 9 authors.
-    for author in CHURCH_FATHERS:
+    
+    def search_author(author):
         try:
             results = commentary_db.similarity_search_with_relevance_scores(
                 search_query,
@@ -55,40 +53,203 @@ def perform_commentary_search(commentary_db, search_query):
                 filter={FATHER_NAME: author}
             )
             if results and results[0][1] > 0.83:
-                search_results.extend(results)
+                return results
         except Exception as exc:
             logging.error(f"Author search generated an exception for {author}: {exc}")
+        return []
+
+    # Use ThreadPoolExecutor to search in parallel
+    # Chroma/DuckDB are usually thread-safe for reading
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = executor.map(search_author, CHURCH_FATHERS)
+        
+    for res in results:
+        if res:
+            search_results.extend(res)
+            
     return search_results
 
-def translate_texts(texts, llm):
-    """Translates a list of texts to Polish using the LLM."""
-    if not llm:
-        return texts
-    
+import hashlib
+try:
+    import psycopg2
+    from psycopg2.extras import DictCursor
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    psycopg2 = None
+    DictCursor = None
+    PSYCOPG2_AVAILABLE = False
+    logging.warning("psycopg2 not installed. Database caching disabled.")
+
+def get_db_connection():
+    if not PSYCOPG2_AVAILABLE:
+        return None
     try:
-        # Batch translation to save calls
-        prompt = COMMENTARY_TRANSLATION_PROMPT.format(texts=json.dumps(texts))
-        response = llm.invoke(prompt)
-        content = response.content
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        return conn
+    except Exception as e:
+        logging.error(f"Database connection failed: {e}")
+        return None
+
+
+class TranslationBatch(BaseModel):
+    translations: List[str] = Field(description="A list of translated texts in Polish, corresponding exactly to the input texts.")
+
+def translate_texts(texts, llm):
+    """Translates a list of texts to Polish using the LLM, with DB caching and Structured Output."""
+    if not llm or not texts:
+        return texts
         
-        # Strip markdown json block if present
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-             content = content.split("```")[1].split("```")[0].strip()
-             
-        translated_texts = json.loads(content)
+    # Filter out empty texts to avoid unnecessary processing
+    valid_texts = [t for t in texts if t and t.strip()]
+    if not valid_texts:
+        return texts
+
+    conn = get_db_connection()
+    cached_translations = {}
+    missing_texts = []
+    missing_indices = []
+
+    # 1. Check Cache
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                for i, text in enumerate(texts):
+                    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                    cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'pl'", (text_hash,))
+                    result = cur.fetchone()
+                    
+                    if result:
+                        cached_translations[i] = result[0]
+                    else:
+                        missing_texts.append(text)
+                        missing_indices.append(i)
+        except Exception as e:
+             logging.error(f"Error checking cache: {e}")
+             missing_texts = texts
+             missing_indices = list(range(len(texts)))
+        finally:
+             conn.close()
+    else:
+        missing_texts = texts
+        missing_indices = list(range(len(texts)))
+
+    # 2. Translate Missing (Batch with Structured Output)
+    if missing_texts:
+        try:
+            # Prepare batch prompt
+            prompt = COMMENTARY_TRANSLATION_PROMPT.format(texts=json.dumps(missing_texts))
+            
+            # Use Structured Output
+            structured_llm = llm.with_structured_output(TranslationBatch)
+            batch_result = structured_llm.invoke(prompt)
+            
+            translated_batch = batch_result.translations if batch_result else []
+            
+            # Verify length
+            if len(translated_batch) != len(missing_texts):
+                logging.warning(f"Translation length mismatch: got {len(translated_batch)}, expected {len(missing_texts)}. Using raw list or fallback.")
+                # If mismatch, we might need to fallback or just map what we have. 
+                # Ideally with structured output this shouldn't happen often.
+                # Padding with original text if shorter
+                while len(translated_batch) < len(missing_texts):
+                    translated_batch.append(missing_texts[len(translated_batch)])
+                # Truncating if longer
+                translated_batch = translated_batch[:len(missing_texts)]
+
+            # Save to DB
+            conn = get_db_connection()
+            if conn:
+                try:
+                    with conn.cursor() as cur:
+                        for idx, text in enumerate(missing_texts):
+                            t_text = translated_batch[idx] if idx < len(translated_batch) else text
+                            t_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                            cur.execute("""
+                                INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
+                                VALUES (%s, %s, %s, 'pl')
+                                ON CONFLICT (hash) DO NOTHING
+                            """, (t_hash, text, t_text))
+                        conn.commit()
+                except Exception as e:
+                    logging.error(f"Error saving to cache: {e}")
+                finally:
+                    conn.close()
+
+            # Merge back
+            for i, idx in enumerate(missing_indices):
+                cached_translations[idx] = translated_batch[i]
+                
+        except Exception as e:
+            logging.error(f"Error translating commentaries: {e}")
+            for i, idx in enumerate(missing_indices):
+                     cached_translations[idx] = missing_texts[i]
+    
+    # 3. Reconstruct Result
+    final_translations = []
+    for i in range(len(texts)):
+        final_translations.append(cached_translations.get(i, texts[i]))
         
-        if isinstance(translated_texts, list) and len(translated_texts) == len(texts):
-            return translated_texts
-        else:
-            logging.error("Translation returned mismatching list length or invalid format.")## odaj tekst do logow
-            logging.error(translated_texts)
-            return texts
+    return final_translations
+
+def translate_query(query, llm):
+    """Translates a search query to English using the LLM, with DB caching (en target)."""
+    if not llm or not query:
+        return query
+    
+    query = query.strip()
+    if not query:
+        return query
+
+    conn = get_db_connection()
+    cached_translation = None
+    query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
+
+    # 1. Check Cache (target language 'en' for queries)
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'en'", (query_hash,))
+                result = cur.fetchone()
+                if result:
+                    cached_translation = result[0]
+        except Exception as e:
+             logging.error(f"Error checking cache for query: {e}")
+        finally:
+             conn.close()
+    
+    if cached_translation:
+        return cached_translation
+
+    # 2. Translate
+    try:
+        translation_query = QUERY_TRANSLATION_PROMPT.format(query=query)
+        response = llm.invoke(translation_query)
+        # Handle different response types from langchain
+        translated_text = response.content if hasattr(response, 'content') else str(response)
+        translated_text = translated_text.strip()
+        
+        # 3. Save to DB
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    # Use ON CONFLICT DO NOTHING
+                    cur.execute("""
+                        INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
+                        VALUES (%s, %s, %s, 'en')
+                        ON CONFLICT (hash) DO NOTHING
+                    """, (query_hash, query, translated_text))
+                conn.commit()
+            except Exception as e:
+                logging.error(f"Error saving query to cache: {e}")
+            finally:
+                conn.close()
+        
+        return translated_text
             
     except Exception as e:
-        logging.error(f"Error translating commentaries: {e}")
-        return texts
+        logging.error(f"Translation failed: {e}")
+        return query
 
 def search_and_format_commentaries(commentary_db, search_query, language, llm_translate):
     """
@@ -171,9 +332,18 @@ def format_bible_results(bible_search_results, language='en'):
         if language == 'pl':
             display_book_name = BOOK_NAMES_PL.get(book_code, display_book_name)
             
-        verse_nums_str = metadata.get("verse_nums", "")
-        formatted_verse_nums = format_verse_numbers(verse_nums_str)
         chapter = metadata.get("chapter")
+        verse_nums_str = metadata.get("verse_nums", "")
+        # FIX: The metadata verse_nums might be wrong if the chunk didn't respect line boundaries perfectly,
+        # or if the vector DB metadata is just a range. 
+        # We now identify the REAL verses in the chunk content.
+        from bible_lookup import get_real_verse_nums
+        real_verse_nums = get_real_verse_nums(book_code, chapter, r[0].page_content)
+        
+        if real_verse_nums:
+            verse_nums_str = ",".join(str(n) for n in real_verse_nums)
+            
+        formatted_verse_nums = format_verse_numbers(verse_nums_str)
         
         content = r[0].page_content
         

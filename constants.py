@@ -23,7 +23,7 @@ Please provide the following:
 * **Theological Significance:** How do these insights connect to the broader story of God's redemption (as seen in the gospel message) across the Old and New Testaments?
 * **Practical Application:** What actions or changes in understanding might be inspired by reflecting on these passages together?
 
-Do not format the response. Give short relatively short responses.
+Do not format the response. Give short responses.
 User do not know about the included passages so do no mention about the verses.
 Give a general summary of the topic and the insights from the verses in English.
 """
@@ -42,7 +42,7 @@ Proszę o wykonanie następujących kroków:
 * **Znaczenie Teologiczne:** Jak te spostrzeżenia łączą się z szerszą historią Bożego odkupienia (widoczną w przesłaniu ewangelii) w Starym i Nowym Testamencie?
 * **Praktyczne Zastosowanie:** Jakie działania lub zmiany w zrozumieniu mogą być inspirowane wspólną refleksją nad tymi fragmentami?
 
-Nie formatuj odpowiedzi. Udzielaj stosunkowo krótkich odpowiedzi.
+Nie formatuj odpowiedzi. Udzielaj krótkich odpowiedzi.
 Użytkownik nie zna dołączonych fragmentów, więc nie wspominaj o wersetach bezpośrednio.
 Podaj ogólne podsumowanie tematu i spostrzeżenia z wersetów po Polsku.
 """
@@ -241,6 +241,5 @@ COMMENTARY_TRANSLATION_PROMPT = """
 You are a helpful assistant that translates theological texts from English to Polish.
 Translate the following list of commentary excerpts into Polish.
 Maintain the theological meaning, tone, and historical context.
-Return ONLY a valid JSON list of strings, matching the order of the input.
 Input: {texts}
 """
