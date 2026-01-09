@@ -234,7 +234,7 @@ BOOK_NAMES_PL = {
     '2JN': '2 Jana',
     '3JN': '3 Jana',
     'JUD': 'Judy',
-    'REV': 'Objawienie'
+    'REV': 'Apokalipsa Świętego Jana'
 }
 
 COMMENTARY_TRANSLATION_PROMPT = """
