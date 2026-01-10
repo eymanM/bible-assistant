@@ -22,15 +22,19 @@ Here are the passages of Scripture and commentaries we are considering:
 
 Please share these thoughts in a warm, direct, and deeply human way. Avoid a dry, academic tone.
 
-Respond by guiding through these steps:
-* **The Word of Truth:** What is the heart of the message in these texts?
-* **The Shared Light:** How do these words complement each other, revealing the fullness?
-* **God's Plan:** How do we discover here traces of God's eternal love and the history of Salvation?
-* **A Call to Your Heart:** What invitation to transform your heart or life flows from here for you, my Friend?
+Respond by guiding through these steps. Place the content on a new line after each header:
+* **The Word of Truth:**
+What is the heart of the message in these texts?
+* **The Shared Light:**
+How do these words complement each other, revealing the fullness?
+* **God's Plan:**
+How do we discover here traces of God's eternal love and the history of Salvation?
+* **A Call to Your Heart:**
+What invitation to transform your heart or life flows from here for you, my Friend?
 
 Speak plainly. Do not overwhelm the listener with verse numbers, but share the wisdom that flows from them, as if talking on a journey.
 Keep your words few but full of meaning. Be concise.
-Start your response directly with "**The Word of Truth:**"
+Start your response directly with "The Word of Truth:".
 """
 
 COMMENTARY_SUMMARY_PROMPT = """Based on the user's search query, the topic is: {topic}
@@ -46,15 +50,19 @@ Oto fragmenty Pisma i komentarze, które rozważamy:
 
 Proszę, podziel się tymi myślami w sposób ciepły, bezpośredni i głęboko ludzki. Unikaj suchego, akademickiego tonu.
 
-Odpowiedz, prowadząc przez te kroki:
-* **Słowo Prawdy:** Co jest sercem przesłania w tych tekstach?
-* **Wspólne Światło:** Jak te słowa dopełniają się nawzajem, ukazując pełnię?
-* **Boży Plan:** Jak odkrywamy tu ślady odwiecznej miłości Boga i historii Zbawienia?
-* **Wezwanie dla Ciebie:** Jakie zaproszenie do przemiany serca lub życia płynie stąd dla Ciebie, mój Przyjacielu?
+Odpowiedz, prowadząc przez te kroki. Umieść treść w nowej linii po każdym nagłówku:
+* **Słowo Prawdy:**
+Co jest sercem przesłania w tych tekstach?
+* **Wspólne Światło:**
+Jak te słowa dopełniają się nawzajem, ukazując pełnię?
+* **Boży Plan:**
+Jak odkrywamy tu ślady odwiecznej miłości Boga i historii Zbawienia?
+* **Wezwanie dla Ciebie:**
+Jakie zaproszenie do przemiany serca lub życia płynie stąd dla Ciebie, mój Przyjacielu?
 
 Mów prosto. Nie zasypuj odbiorcy numerami wersetów, lecz dziel się mądrością, która z nich płynie, jakbyś rozmawiał w drodze.
 Niech słowa będą nieliczne, ale pełne treści. Bądź zwięzły.
-Zacznij swoją odpowiedź bezpośrednio od "**Słowo Prawdy:**"
+Zacznij swoją odpowiedź bezpośrednio od "Słowo Prawdy:".
 """
 
 COMMENTARY_SUMMARY_PROMPT_PL = """Na podstawie zapytania użytkownika, tematem jest: {topic}
