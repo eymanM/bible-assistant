@@ -141,11 +141,12 @@ def translate_texts(texts, llm):
 
     # 2. Translate Missing (Batch with Structured Output)
     if missing_texts:
+        translated_batch = None
         try:
             # Prepare batch prompt
             prompt = COMMENTARY_TRANSLATION_PROMPT.format(texts=json.dumps(missing_texts))
             
-            # Use Structured Output (strict=True not supported by current env)
+            # Use Structured Output
             structured_llm = llm.with_structured_output(TranslationBatch)
             batch_result = structured_llm.invoke(prompt)
             
@@ -153,53 +154,57 @@ def translate_texts(texts, llm):
                 translated_batch = batch_result.get('translations', [])
             elif batch_result and hasattr(batch_result, 'translations'):
                 translated_batch = batch_result.translations
-            else:
-                translated_batch = []
             
             # Verify length
-            if len(translated_batch) != len(missing_texts):
+            if translated_batch and len(translated_batch) != len(missing_texts):
                 logging.warning(f"Translation length mismatch: got {len(translated_batch)}, expected {len(missing_texts)}. Falling back to individual translation.")
-                
-                # Fallback: Translate one by one
-                translated_batch = []
-                for text in missing_texts:
-                    try:
-                        # Simple individual prompt
-                        single_prompt = f"Translate this theological text to Polish. Maintain tone and meaning. Text: {text}"
-                        response = llm.invoke(single_prompt)
-                        t_text = response.content if hasattr(response, 'content') else str(response)
-                        translated_batch.append(t_text.strip())
-                    except Exception as inner_e:
-                        logging.error(f"Fallback translation failed for text: {inner_e}")
-                        translated_batch.append(text) # Keep original on error
+                translated_batch = None # Trigger fallback
 
-            # Save to DB
-            conn = get_db_connection()
-            if conn:
+        except Exception as e:
+            logging.warning(f"Batch translation failed: {e}. Switching to individual translation.")
+            translated_batch = None
+        
+        # Fallback: Individual Translation if batch failed or mismatched
+        if translated_batch is None:
+            translated_batch = []
+            for text in missing_texts:
                 try:
-                    with conn.cursor() as cur:
-                        for idx, text in enumerate(missing_texts):
-                            t_text = translated_batch[idx] if idx < len(translated_batch) else text
-                            t_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-                            cur.execute("""
-                                INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
-                                VALUES (%s, %s, %s, 'pl')
-                                ON CONFLICT (hash) DO NOTHING
-                            """, (t_hash, text, t_text))
-                        conn.commit()
-                except Exception as e:
-                    logging.error(f"Error saving to cache: {e}")
-                finally:
-                    conn.close()
+                    # Simple individual prompt
+                    single_prompt = f"Translate this theological text to Polish. Maintain tone and meaning. Text: {text}"
+                    response = llm.invoke(single_prompt)
+                    t_text = response.content if hasattr(response, 'content') else str(response)
+                    translated_batch.append(t_text.strip())
+                except Exception as inner_e:
+                    logging.error(f"Fallback translation failed for text: {inner_e}")
+                    translated_batch.append(text) # Keep original on error
 
-            # Merge back
+        # Save to DB
+        conn = get_db_connection()
+        if conn and translated_batch:
+            try:
+                with conn.cursor() as cur:
+                    for idx, text in enumerate(missing_texts):
+                        t_text = translated_batch[idx] if idx < len(translated_batch) else text
+                        t_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                        cur.execute("""
+                            INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
+                            VALUES (%s, %s, %s, 'pl')
+                            ON CONFLICT (hash) DO NOTHING
+                        """, (t_hash, text, t_text))
+                    conn.commit()
+            except Exception as e:
+                logging.error(f"Error saving to cache: {e}")
+            finally:
+                conn.close()
+
+        # Merge back
+        if translated_batch:
             for i, idx in enumerate(missing_indices):
                 cached_translations[idx] = translated_batch[i]
-                
-        except Exception as e:
-            logging.error(f"Error translating commentaries: {e}")
-            for i, idx in enumerate(missing_indices):
-                     cached_translations[idx] = missing_texts[i]
+        else:
+             # Should practically not happen unless individual loop yielded nothing (empty)
+             for i, idx in enumerate(missing_indices):
+                cached_translations[idx] = missing_texts[i]
     
     # 3. Reconstruct Result
     final_translations = []
