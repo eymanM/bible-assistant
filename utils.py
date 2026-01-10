@@ -302,6 +302,10 @@ def search_and_format_commentaries(commentary_db, search_query, language, llm_tr
             if i < len(translated_texts):
                  display_content = translated_texts[i]
             father_name = CHURCH_FATHERS_PL.get(father_name, father_name)
+        
+        # Check for empty content
+        if not display_content or not display_content.strip():
+            continue
              
         result_string = f"Source: {father_name}\nContent: {display_content}"
         
