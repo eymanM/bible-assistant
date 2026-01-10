@@ -306,7 +306,14 @@ def search_and_format_commentaries(commentary_db, search_query, language, llm_tr
         # Check for empty content
         if not display_content or not display_content.strip():
             continue
-             
+            
+        # Clean short parenthetical prefixes (e.g. citations)
+        display_content = display_content.strip()
+        if display_content.startswith('('):
+            end_paren_idx = display_content.find(')')
+            if end_paren_idx != -1 and end_paren_idx < 30:
+                 display_content = display_content[end_paren_idx+1:].strip()
+                 
         result_string = f"Source: {father_name}\nContent: {display_content}"
         
         if result_string not in seen:
