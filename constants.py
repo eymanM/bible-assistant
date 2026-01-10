@@ -4,8 +4,8 @@ COMMENTARY_DB_DIR = "./data/commentary_db"
 
 # Model names
 EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
-ANTROPIC_LLM_MODEL_NAME = "claude-3-5-sonnet-20241022"
-OPEN_AI_LLM_MODEL_NAME = "gpt-4.1-nano"
+OPEN_AI_LLM_MODEL_NAME = "gpt-5-mini"
+OPEN_AI_LLM_MODEL_NAME_TRANSLATION = "gpt-5-nano"
 MAX_TOKENS = 4096
 
 # Query Instructions

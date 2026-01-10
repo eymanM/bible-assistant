@@ -17,12 +17,12 @@ def setup_llms():
     try:
         llm_insights = ChatOpenAI(
             max_tokens=MAX_TOKENS, 
-            model_name="gpt-4.1-mini",
+            model_name=OPEN_AI_LLM_MODEL_NAME,
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
         llm_translate = ChatOpenAI(
             max_tokens=MAX_TOKENS, 
-            model_name="gpt-4.1-nano",
+            model_name=OPEN_AI_LLM_MODEL_NAME_TRANSLATION,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             temperature=0
         )
