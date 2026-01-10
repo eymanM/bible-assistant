@@ -188,6 +188,7 @@ def search():
                 'bible_results': formatted_bible,
                 'commentary_results': formatted_commentary
             })
+            logging.info(f"Sending results: {results_data[:200]}...") # Log first 200 chars
             yield f"event: results\ndata: {results_data}\n\n"
 
             # 2. Prepare Prompt and Stream LLM if insights enabled
@@ -210,12 +211,14 @@ def search():
                     content = chunk.content if hasattr(chunk, 'content') else str(chunk)
                     if content:
                         data = json.dumps({'token': content})
+                        # logging.info(f"Sending token: {content}") # Too verbose?
                         yield f"event: token\ndata: {data}\n\n"
             
             yield "event: end\ndata: {}\n\n"
-        except Exception:
-            logging.error(f"Error in generator: {traceback.format_exc()}")
-            yield f"event: error\ndata: {json.dumps({'error': 'internal error'})}\n\n"
+        except Exception as e:
+            logging.error(f"Error in generator: {e}")
+            logging.error(traceback.format_exc())
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
