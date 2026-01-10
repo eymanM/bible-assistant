@@ -105,122 +105,133 @@ def search():
         400:
             description: Missing query parameter
     """
-    data = request.get_json(silent=True) or {}
-    search_query = data.get('query')
-    settings = data.get('settings', {})
+    try:
+        data = request.get_json(silent=True) or {}
+        search_query = data.get('query')
+        settings = data.get('settings', {})
 
-    # Settings parsing
-    include_ot = settings.get('oldTestament', True)
-    include_nt = settings.get('newTestament', True)
-    include_commentary = settings.get('commentary', True)
-    include_insights = settings.get('insights', True)
-    language = settings.get('language', 'en')
+        # Settings parsing
+        include_ot = settings.get('oldTestament', True)
+        include_nt = settings.get('newTestament', True)
+        include_commentary = settings.get('commentary', True)
+        include_insights = settings.get('insights', True)
+        language = settings.get('language', 'en')
 
-    if not search_query:
-        return jsonify({'error': 'No query provided'}), 400
+        if not search_query:
+            return jsonify({'error': 'No query provided'}), 400
 
-    if len(search_query) > 150:
-        return jsonify({'error': 'Query too long. Maximum 150 characters allowed.'}), 400
+        if len(search_query) > 150:
+            return jsonify({'error': 'Query too long. Maximum 150 characters allowed.'}), 400
 
-    # Translate Polish query to English
-    if language == 'pl' and llm_translate:
-        search_query = translate_query(search_query, llm_translate)
+        # Logic moved to generator to prevent blocking (optimized for TTFB)
 
-    # Parallel Execution
-    
-    future_bible = executor.submit(
-        bible_db.similarity_search_with_relevance_scores, 
-        search_query, 
-        3
-    )
-    
-    future_commentary = None
-    if include_commentary:
-        future_commentary = executor.submit(
-            search_and_format_commentaries, 
-            commentary_db, 
-            search_query,
-            language,
-            llm_translate
-        )
-    
-    # Logic moved to generator to prevent blocking
-
-    def generate(future_bible=future_bible, future_commentary=future_commentary,
-                 search_query=search_query, language=language, 
-                 include_ot=include_ot, include_nt=include_nt,
-                 include_insights=include_insights, llm_insights=llm_insights):
-        try:
-            # 1. Resolve Futures (Blocking happens here, inside the stream)
-            # Use local variables
-            bible_hits = []
-            formatted_commentary = []
-            
+        def generate(search_query=search_query, language=language, 
+                     include_ot=include_ot, include_nt=include_nt,
+                     include_insights=include_insights, llm_insights=llm_insights,
+                     include_commentary=include_commentary, llm_translate=llm_translate,
+                     bible_db=bible_db, commentary_db=commentary_db):
             try:
-                bible_hits = future_bible.result()
-            except Exception as e:
-                logging.error(f"Error in bible search from future: {e}")
+                # 1. Translate Polish query to English (Blocked inside stream, keeping connection alive)
+                if language == 'pl' and llm_translate:
+                    search_query = translate_query(search_query, llm_translate)
+
+                # 2. Parallel Execution
+                # Submit Commentary first (Longer task)
+                future_commentary = None
+                if include_commentary:
+                    future_commentary = executor.submit(
+                        search_and_format_commentaries, 
+                        commentary_db, 
+                        search_query,
+                        language,
+                        llm_translate
+                    )
+
+                # Submit Bible second (Faster task)
+                future_bible = executor.submit(
+                    bible_db.similarity_search_with_relevance_scores, 
+                    search_query, 
+                    3
+                )
+
+                # 3. Resolve Futures & Yield incrementally
                 bible_hits = []
-
-            if future_commentary:
-                try:
-                    formatted_commentary = future_commentary.result()
-                except Exception as e:
-                    logging.error(f"Error in commentary search/translation from future: {e}")
-                    formatted_commentary = []
-
-            # Filter Bible Results
-            filtered_bible = []
-            for hit in bible_hits:
-                book = hit[0].metadata.get('book')
-                if not book: 
-                    continue
-                if include_ot and book in OT_BOOKS:
-                    filtered_bible.append(hit)
-                elif include_nt and book in NT_BOOKS:
-                    filtered_bible.append(hit)
-
-            # 2. Send Search Results
-            # Bible formatting is fast (local lookup)
-            formatted_bible = format_bible_results(filtered_bible, language=language)
-            
-            results_data = json.dumps({
-                'bible_results': formatted_bible,
-                'commentary_results': formatted_commentary
-            })
-            logging.info(f"Sending results: {results_data[:200]}...") # Log first 200 chars
-            yield f"event: results\ndata: {results_data}\n\n"
-
-            # 2. Prepare Prompt and Stream LLM if insights enabled
-            if include_insights:
-                passages = "\n".join([f"Source: {r[0].metadata['book']}\nContent: {r[0].page_content}" for r in filtered_bible])
+                formatted_commentary = []
                 
+                # 3a. Yield Bible Results (Fast)
+                try:
+                    bible_hits = future_bible.result()
+                except Exception as e:
+                    logging.error(f"Error in bible search from future: {e}")
+                    bible_hits = []
+
+                # Filter Bible Results
+                filtered_bible = []
+                for hit in bible_hits:
+                    book = hit[0].metadata.get('book')
+                    if not book: 
+                        continue
+                    if include_ot and book in OT_BOOKS:
+                        filtered_bible.append(hit)
+                    elif include_nt and book in NT_BOOKS:
+                        filtered_bible.append(hit)
+
+                formatted_bible = format_bible_results(filtered_bible, language=language)
+                
+                # FIRST YIELD: Bible only
+                results_data = json.dumps({
+                    'bible_results': formatted_bible,
+                    'commentary_results': []
+                })
+                yield f"event: results\ndata: {results_data}\n\n"
+
+                # 3b. Yield Commentary Results (Slow)
+                if future_commentary:
+                    try:
+                        formatted_commentary = future_commentary.result()
+                    except Exception as e:
+                        logging.error(f"Error in commentary search/translation from future: {e}")
+                        formatted_commentary = []
+
+                # SECOND YIELD: Bible + Commentary
                 if formatted_commentary:
-                    commentary_text = "\n".join(formatted_commentary)
-                    passages += f"\n\nCommentaries:\n{commentary_text}"
+                    results_data = json.dumps({
+                        'bible_results': formatted_bible,
+                        'commentary_results': formatted_commentary
+                    })
+                    yield f"event: results\ndata: {results_data}\n\n"
 
-                if not passages:
-                    passages = "No relevant passages found."
+                # 6. Prepare Prompt and Stream LLM
+                if include_insights:
+                    passages = "\n".join([f"Source: {r[0].metadata['book']}\nContent: {r[0].page_content}" for r in filtered_bible])
+                    
+                    if formatted_commentary:
+                        commentary_text = "\n".join(formatted_commentary)
+                        passages += f"\n\nCommentaries:\n{commentary_text}"
 
-                summary_prompt = BIBLE_SUMMARY_PROMPT_PL if language == 'pl' else BIBLE_SUMMARY_PROMPT
-                llm_query = summary_prompt.format(topic=search_query, passages=passages)
+                    if not passages:
+                        passages = "No relevant passages found."
 
-                # 3. Stream LLM works synchronously now
-                # Use llm_insights specifically
-                for chunk in llm_insights.stream(llm_query):
-                    content = chunk.content if hasattr(chunk, 'content') else str(chunk)
-                    if content:
-                        data = json.dumps({'token': content})
-                        # logging.info(f"Sending token: {content}") # Too verbose?
-                        yield f"event: token\ndata: {data}\n\n"
-            
-            yield "event: end\ndata: {}\n\n"
-        except Exception as e:
-            logging.error(f"Error in generator: {e}")
-            logging.error(traceback.format_exc())
-            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                    summary_prompt = BIBLE_SUMMARY_PROMPT_PL if language == 'pl' else BIBLE_SUMMARY_PROMPT
+                    llm_query = summary_prompt.format(topic=search_query, passages=passages)
 
-    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+                    for chunk in llm_insights.stream(llm_query):
+                        content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+                        if content:
+                            data = json.dumps({'token': content})
+                            yield f"event: token\ndata: {data}\n\n"
+                
+                yield "event: end\ndata: {}\n\n"
+            except Exception as e:
+                logging.error(f"Error in generator: {e}")
+                logging.error(traceback.format_exc())
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+    except Exception as e:
+        logging.error(f"Error in search endpoint: {e}")
+        logging.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1')
