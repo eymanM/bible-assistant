@@ -2,7 +2,10 @@
 import os
 import json
 from langchain_community.embeddings import HuggingFaceInstructEmbeddings
-from langchain_community.vectorstores import Chroma
+try:
+    from langchain_chroma import Chroma
+except ImportError:
+    from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
 from concurrent.futures import ThreadPoolExecutor
 import logging
@@ -16,15 +19,18 @@ from typing import List
 def setup_llms():
     try:
         llm_insights = ChatOpenAI(
-            max_tokens=MAX_TOKENS, 
             model_name=OPEN_AI_LLM_MODEL_NAME,
-            openai_api_key=os.getenv("OPENAI_API_KEY")
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            request_timeout=60,
+            model_kwargs={"max_completion_tokens": MAX_TOKENS},
+            temperature=1
         )
         llm_translate = ChatOpenAI(
-            max_tokens=MAX_TOKENS, 
             model_name=OPEN_AI_LLM_MODEL_NAME_TRANSLATION,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
-            temperature=0
+            request_timeout=60,
+            model_kwargs={"max_completion_tokens": MAX_TOKENS},
+            temperature=1
         )
         return llm_insights, llm_translate
     except Exception as e:
