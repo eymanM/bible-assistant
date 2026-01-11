@@ -18,19 +18,23 @@ from typing import List
 # Initialize LLMs
 def setup_llms():
     try:
+        # Insights – Grok model
         llm_insights = ChatOpenAI(
-            model_name=OPEN_AI_LLM_MODEL_NAME,
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            model_name=XAI_LLM_MODEL_NAME,
+            openai_api_key=os.getenv("XAI_API_KEY") ,
+            base_url=XAI_API_BASE_URL,
             request_timeout=60,
             model_kwargs={"max_completion_tokens": MAX_TOKENS},
-            temperature=1
+            temperature=1,
         )
+
+        # Translations – GPT‑4.1‑nano model
         llm_translate = ChatOpenAI(
             model_name=OPEN_AI_LLM_MODEL_NAME_TRANSLATION,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             request_timeout=60,
             model_kwargs={"max_completion_tokens": MAX_TOKENS},
-            temperature=1
+            temperature=1,
         )
         return llm_insights, llm_translate
     except Exception as e:
