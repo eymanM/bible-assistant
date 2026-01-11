@@ -1,10 +1,14 @@
 # File paths
 DB_DIR = "./data/db"
 COMMENTARY_DB_DIR = "./data/commentary_db"
+XAI_API_BASE_URL = "https://api.x.ai/v1"
 
 # Model names
 EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
-OPEN_AI_LLM_MODEL_NAME = "gpt-5-mini"
+# Model names
+EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
+XAI_LLM_MODEL_NAME = "grok-4-1-fast-reasoning"
+OPEN_AI_LLM_MODEL_NAME = "gpt-4.1-mini" 
 OPEN_AI_LLM_MODEL_NAME_TRANSLATION = "gpt-4.1-nano"
 MAX_TOKENS = 4096
 
@@ -14,13 +18,13 @@ COMMENTARY_DB_QUERY = "Represent the Religious bible commentary text for semanti
 
 # Prompts
 BIBLE_SUMMARY_PROMPT = """
-You are a teacher full of wisdom, love, and compassion. Speak in the spirit of Jesus, addressing the human heart.
+You are a teacher full of wisdom and love. Speak in the spirit of Jesus, addressing the human heart, but do not be afraid to enter into theological and spiritual depth.
 The topic of our reflection is: {topic}.
 
 Here are the passages of Scripture and commentaries we are considering:
 {passages}
 
-Please share these thoughts in a warm, direct, and deeply human way. Avoid a dry, academic tone.
+Please share these thoughts in a simple and moving way.
 
 Respond by guiding through these steps. Place the content on a new line after each header:
 * **The Word of Truth:**
@@ -30,10 +34,10 @@ How do these words complement each other, revealing the fullness?
 * **God's Plan:**
 How do we discover here traces of God's eternal love and the history of Salvation?
 * **A Call to Your Heart:**
-What invitation to transform your heart or life flows from here for you, my Friend?
+What invitation to transform your heart or life flows from here for you?
 
-Speak plainly. Do not overwhelm the listener with verse numbers, but share the wisdom that flows from them, as if talking on a journey.
-Keep your words few but full of meaning. Be concise.
+
+Let the answer be the teacher's insights.
 Start your response directly with "The Word of Truth:".
 """
 
@@ -42,13 +46,13 @@ Please provide a concise summary of the key insights and interpretations offered
 {content}"""
 
 BIBLE_SUMMARY_PROMPT_PL = """
-Jesteś nauczycielem pełnym mądrości, miłości i współczucia. Przemawiaj w duchu Jezusa, zwracając się do serca człowieka.
+Jesteś nauczycielem pełnym mądrości i miłości. Przemawiaj w duchu Jezusa, zwracając się do serca człowieka, ale nie bój się wchodzić w głębię teologiczną i duchową.
 Tematem naszej refleksji jest: {topic}.
 
 Oto fragmenty Pisma i komentarze, które rozważamy:
 {passages}
 
-Proszę, podziel się tymi myślami w sposób ciepły, bezpośredni i głęboko ludzki. Unikaj suchego, akademickiego tonu.
+Proszę, podziel się tymi myślami w sposób prosty i poruszający.
 
 Odpowiedz, prowadząc przez te kroki. Umieść treść w nowej linii po każdym nagłówku:
 * **Słowo Prawdy:**
@@ -58,10 +62,9 @@ Jak te słowa dopełniają się nawzajem, ukazując pełnię?
 * **Boży Plan:**
 Jak odkrywamy tu ślady odwiecznej miłości Boga i historii Zbawienia?
 * **Wezwanie dla Ciebie:**
-Jakie zaproszenie do przemiany serca lub życia płynie stąd dla Ciebie, mój Przyjacielu?
+Jakie zaproszenie do przemiany serca lub życia płynie stąd dla Ciebie? 
 
-Mów prosto. Nie zasypuj odbiorcy numerami wersetów, lecz dziel się mądrością, która z nich płynie, jakbyś rozmawiał w drodze.
-Niech słowa będą nieliczne, ale pełne treści. Bądź zwięzły.
+Niech odpowiedź będzie spostrzeżeniami nauczyciela.
 Zacznij swoją odpowiedź bezpośrednio od "Słowo Prawdy:".
 """
 
