@@ -129,7 +129,7 @@ class SearchService:
             if not passages.strip():
                 passages = "No relevant passages found."
 
-            summary_prompt = BIBLE_SUMMARY_PROMPT_PL if language == 'pl' else BIBLE_SUMMARY_PROMPT
+            summary_prompt = BIBLE_SUMMARY_PROMPT_PL if language == 'pl' else BIBLE_SUMMARY_PROMPT_EN
             llm_query = summary_prompt.format(topic=topic, passages=passages)
 
             for chunk in self.llm_insights.stream(llm_query):
