@@ -1,7 +1,7 @@
 import os
 import json
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify, Response, stream_with_context, abort
 from dotenv import load_dotenv
 from flask_cors import CORS
 from flasgger import Swagger
@@ -22,6 +22,23 @@ load_dotenv()
 # Initialize Flask app and enable CORS
 app = Flask(__name__)
 CORS(app)
+
+@app.before_request
+def require_api_key():
+    # Allow OPTIONS requests for CORS preflight
+    if request.method == 'OPTIONS':
+        return
+        
+    # Allow health check without authentication
+    if request.endpoint == 'health_check':
+        return
+
+    # Check for API Key
+    api_key = os.getenv('API_KEY')
+    if api_key:
+        request_key = request.headers.get('X-API-KEY')
+        if not request_key or request_key != api_key:
+            return jsonify({'error': 'Unauthorized', 'message': 'Invalid or missing X-API-KEY'}), 401
 template = {
     "info": {
         "title": "Bible Assistant API",
