@@ -49,9 +49,12 @@ The **Bible Assistant API** is a powerful semantic search engine and AI-powered 
     ```
 
 4.  **Configure Environment:**
-    Create a `.env` file in the root directory (see `.env.example` if available) and add your keys:
+    Create a `.env` file in the root directory (see `.env.example` for a template) and add your keys:
     ```env
     OPENAI_API_KEY=your_openai_key
+    XAI_API_KEY=your_xai_key
+    DATABASE_URL=postgresql://user:password@localhost:5432/bible_assistant
+    API_KEY=your_secret_api_key
     ENV=dev
     PORT=5000
     ```
