@@ -7,8 +7,22 @@ try:
 except ImportError:
     from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from concurrent.futures import ThreadPoolExecutor
 import logging
+
+# Monkey patch for INSTRUCTOR compatibility with newer langchain
+try:
+    from InstructorEmbedding import INSTRUCTOR
+    _orig_load_sbert_model = INSTRUCTOR._load_sbert_model
+
+    def _new_load_sbert_model(self, model_path, **kwargs):
+        # Ignore token, cache_folder, revision, etc.
+        return _orig_load_sbert_model(self, model_path)
+
+    INSTRUCTOR._load_sbert_model = _new_load_sbert_model
+except ImportError:
+    pass
 
 from constants import *
 from bible_lookup import get_bible_text
@@ -19,13 +33,13 @@ from typing import List
 def setup_llms():
     try:
         # Insights – Grok model
-        llm_insights = ChatOpenAI(
-            model_name=XAI_LLM_MODEL_NAME,
-            openai_api_key=os.getenv("XAI_API_KEY") ,
-            base_url=XAI_API_BASE_URL,
-            request_timeout=60,
-            model_kwargs={"max_completion_tokens": MAX_TOKENS},
-            temperature=1,
+        # Insights – Gemini 3 Flash Preview
+        llm_insights = ChatGoogleGenerativeAI(
+            model=GEMINI_MODEL_NAME,
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            temperature=0.7,
+            max_output_tokens=MAX_TOKENS,
+            timeout=60,
         )
 
         # Translations – GPT‑4.1‑nano model
@@ -33,7 +47,7 @@ def setup_llms():
             model_name=OPEN_AI_LLM_MODEL_NAME_TRANSLATION,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             request_timeout=60,
-            model_kwargs={"max_completion_tokens": MAX_TOKENS},
+            max_completion_tokens=MAX_TOKENS,
             temperature=1,
         )
         return llm_insights, llm_translate
@@ -62,7 +76,7 @@ def perform_commentary_search(commentary_db, search_query):
                 k=1,
                 filter={FATHER_NAME: author}
             )
-            if results and results[0][1] > 0.83:
+            if results and results[0][1] > 0.84:
                 return results
         except Exception as exc:
             logging.error(f"Author search generated an exception for {author}: {exc}")

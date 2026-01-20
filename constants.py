@@ -10,6 +10,7 @@ EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
 XAI_LLM_MODEL_NAME = "grok-4-1-fast-reasoning"
 OPEN_AI_LLM_MODEL_NAME = "gpt-4.1-mini" 
 OPEN_AI_LLM_MODEL_NAME_TRANSLATION = "gpt-4.1-nano"
+GEMINI_MODEL_NAME = "gemini-3-flash-preview"
 MAX_TOKENS = 4096
 
 # Query Instructions

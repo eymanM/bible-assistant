@@ -28,6 +28,11 @@ class SearchService:
             for hit in results:
                 book = hit[0].metadata.get('book')
                 if not book: continue
+
+                # Relevance check
+                if hit[1] < 0.84:
+                    continue
+
                 if include_ot and book in OT_BOOKS:
                     filtered_results.append(hit)
                 elif include_nt and book in NT_BOOKS:
@@ -134,6 +139,17 @@ class SearchService:
 
             for chunk in self.llm_insights.stream(llm_query):
                 content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+                
+                # Handle structured content (list of dicts) from new Google models
+                if isinstance(content, list):
+                    text_parts = []
+                    for part in content:
+                        if isinstance(part, dict) and 'text' in part:
+                            text_parts.append(part['text'])
+                        elif isinstance(part, str):
+                            text_parts.append(part)
+                    content = "".join(text_parts)
+                
                 if content:
                     data = json.dumps({'token': content})
                     yield f"event: token\ndata: {data}\n\n"
