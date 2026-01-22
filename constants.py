@@ -55,16 +55,13 @@ Pytanie: {topic}
 Fragmenty do rozważenia:
 {passages}
 
-Odpowiedz w 4 krokach. Po każdym nagłówku pisz w nowej linii:
+Odpowiedz w 3 krokach. Po każdym nagłówku pisz w nowej linii:
 
-* **Słowo Prawdy:**
-Główne przesłanie tych tekstów. Jeśli fragmenty nie pasują do pytania, odpowiedz z własnej wiedzy biblijnej.
+* **Powiązania:**
+W jaki sposób wersety te wzmacniają, uzupełniają lub potencjalnie podważają nawzajem swoje perspektywy na dany temat?
 
-* **Wspólne Światło:**
-Jak te myśli łączą się w całość.
-
-* **Boży Plan:**
-Co to mówi o Bożej miłości i zbawieniu.
+* **Znaczenie Teologiczne:**
+W jaki sposób spostrzeżenia te łączą się z szerszą historią Bożego odkupienia (widoczną w przesłaniu ewangelicznym) w Starym i Nowym Testamencie?
 
 * **Wezwanie dla Ciebie:**
 Praktyczna zachęta do życia.
@@ -72,7 +69,7 @@ Praktyczna zachęta do życia.
 Zasady:
 - Pisz jak do przyjaciela, nie jak teolog
 - Bez zwrotów typu "Dziecko moje"
-- Zacznij od "Słowo Prawdy:"
+- Zacznij od "Powiązania:"
 - Jeśli fragmenty nie odpowiadają na pytanie, skup się na pytaniu
 """
 
@@ -84,16 +81,13 @@ Question: {topic}
 Passages to consider:
 {passages}
 
-Answer in 4 steps. Write on a new line after each header:
+Answer in 3 steps. Write on a new line after each header:
 
-* **The Word of Truth:**
-The main message of these texts. If the passages do not fit the question, answer from your own biblical knowledge.
+* **Connections:**
+How do the verses reinforce, complement, or potentially challenge each other's perspective on the topic?
 
-* **The Shared Light:**
-How these thoughts connect into a whole.
-
-* **God's Plan:**
-What this says about God's love and salvation.
+* **Theological Significance:**
+How do these insights connect to the broader story of God's redemption (as seen in the gospel message) across the Old and New Testaments?
 
 * **A Call for You:**
 Practical encouragement for life.
@@ -101,7 +95,7 @@ Practical encouragement for life.
 Rules:
 - Write like a friend, not like a theologian
 - No phrases like "My child"
-- Start with "The Word of Truth:"
+- Start with "Connections"
 - If passages do not answer the question, focus on the question
 """
 

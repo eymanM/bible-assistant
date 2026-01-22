@@ -37,7 +37,7 @@ def setup_llms():
         llm_insights = ChatGoogleGenerativeAI(
             model=GEMINI_MODEL_NAME,
             google_api_key=os.getenv("GOOGLE_API_KEY"),
-            temperature=0.7,
+            temperature=0.8,
             max_output_tokens=MAX_TOKENS,
             timeout=60,
         )
