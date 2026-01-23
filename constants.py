@@ -15,7 +15,7 @@ MAX_TOKENS = 4096
 
 # Query Instructions
 DB_QUERY = "Represent the Religious Bible verse text for semantic search:"
-COMMENTARY_DB_QUERY = "Represent the Religious bible commentary text for semantic search:"
+COMMENTARY_DB_QUERY = "Represent the Religious Bible commentary text for semantic search:"
 
 # Prompts
 BIBLE_SUMMARY_PROMPT = """
