@@ -32,7 +32,6 @@ from typing import List
 # Initialize LLMs
 def setup_llms():
     try:
-        # Insights – Grok model
         # Insights – Gemini 3 Flash Preview
         llm_insights = ChatGoogleGenerativeAI(
             model=GEMINI_MODEL_NAME,
@@ -385,9 +384,7 @@ def format_bible_results(bible_search_results, language='en'):
             
         chapter = metadata.get("chapter")
         verse_nums_str = metadata.get("verse_nums", "")
-        # FIX: The metadata verse_nums might be wrong if the chunk didn't respect line boundaries perfectly,
-        # or if the vector DB metadata is just a range. 
-        # We now identify the REAL verses in the chunk content.
+        # Identify the REAL verses in the chunk content to handle potential metadata inaccuracies.
         from bible_lookup import get_real_verse_nums
         real_verse_nums = get_real_verse_nums(book_code, chapter, r[0].page_content)
         
