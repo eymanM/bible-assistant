@@ -41,6 +41,8 @@ What invitation to transform your heart or life flows from here for you?
 Let the answer be the teacher's insights.
 Do not use terms of address such as "My child", "My friend", etc.
 Start your response directly with "The Word of Truth:".
+- Be slightly more concise.
+- Do not feel obligated to discuss every passage. You can skip verses if they are minor.
 """
 
 COMMENTARY_SUMMARY_PROMPT = """Based on the user's search query, the topic is: {topic}
@@ -71,6 +73,8 @@ Zasady:
 - Bez zwrotów typu "Dziecko moje"
 - Zacznij od "Powiązania:"
 - Jeśli fragmenty nie odpowiadają na pytanie, skup się na pytaniu
+- Pisz nieco zwięźlej
+- Nie czuj się zobowiązany do omawiania każdego fragmentu. Możesz pominąć wersety, jeśli są mało istotne.
 """
 
 BIBLE_SUMMARY_PROMPT_EN = """
@@ -97,6 +101,8 @@ Rules:
 - No phrases like "My child"
 - Start with "Connections"
 - If passages do not answer the question, focus on the question
+- Be slightly more concise
+- Do not feel obligated to discuss every passage. You can skip verses if they are minor.
 """
 
 COMMENTARY_SUMMARY_PROMPT_PL = """Na podstawie zapytania użytkownika, tematem jest: {topic}
