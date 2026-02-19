@@ -5,8 +5,6 @@ XAI_API_BASE_URL = "https://api.x.ai/v1"
 
 # Model names
 EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
-# Model names
-EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
 XAI_LLM_MODEL_NAME = "grok-4-1-fast-reasoning"
 OPEN_AI_LLM_MODEL_NAME = "gpt-4.1-mini" 
 OPEN_AI_LLM_MODEL_NAME_TRANSLATION = "gpt-4.1-nano"
