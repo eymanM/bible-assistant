@@ -25,7 +25,7 @@ except ImportError:
     pass
 
 from constants import *
-from bible_lookup import get_bible_text
+from bible_lookup import get_bible_text, get_real_verse_nums
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -106,8 +106,13 @@ except ImportError:
 def get_db_connection():
     if not PSYCOPG2_AVAILABLE:
         return None
+
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return None
+
     try:
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        conn = psycopg2.connect(db_url)
         return conn
     except Exception as e:
         logging.error(f"Database connection failed: {e}")
@@ -121,10 +126,13 @@ def translate_texts(texts, llm):
     """Translates a list of texts to Polish using the LLM, with DB caching and Structured Output."""
     if not llm or not texts:
         return texts
-        
-    # Filter out empty texts to avoid unnecessary processing
-    valid_texts = [t for t in texts if t and t.strip()]
-    if not valid_texts:
+
+    # Keep empty values untouched and translate only non-empty inputs.
+    translatable_entries = [
+        (idx, text) for idx, text in enumerate(texts)
+        if isinstance(text, str) and text.strip()
+    ]
+    if not translatable_entries:
         return texts
 
     conn = get_db_connection()
@@ -136,25 +144,25 @@ def translate_texts(texts, llm):
     if conn:
         try:
             with conn.cursor() as cur:
-                for i, text in enumerate(texts):
+                for idx, text in translatable_entries:
                     text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
                     cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'pl'", (text_hash,))
                     result = cur.fetchone()
-                    
+
                     if result:
-                        cached_translations[i] = result[0]
+                        cached_translations[idx] = result[0]
                     else:
                         missing_texts.append(text)
-                        missing_indices.append(i)
+                        missing_indices.append(idx)
         except Exception as e:
-             logging.error(f"Error checking cache: {e}")
-             missing_texts = texts
-             missing_indices = list(range(len(texts)))
+            logging.error(f"Error checking cache: {e}")
+            missing_texts = [text for _, text in translatable_entries]
+            missing_indices = [idx for idx, _ in translatable_entries]
         finally:
-             conn.close()
+            conn.close()
     else:
-        missing_texts = texts
-        missing_indices = list(range(len(texts)))
+        missing_texts = [text for _, text in translatable_entries]
+        missing_indices = [idx for idx, _ in translatable_entries]
 
     # 2. Translate Missing (Batch with Structured Output)
     if missing_texts:
@@ -347,14 +355,25 @@ def search_and_format_commentaries(commentary_db, search_query, language, llm_tr
 def format_verse_numbers(verse_nums_str):
     if not verse_nums_str:
         return ""
-    nums = sorted([int(n) for n in verse_nums_str.split(',')])
+
+    nums = []
+    for raw_num in str(verse_nums_str).split(','):
+        part = raw_num.strip()
+        if not part:
+            continue
+        try:
+            nums.append(int(part))
+        except (TypeError, ValueError):
+            continue
+
+    nums = sorted(set(nums))
     if not nums:
         return ""
-    
+
     ranges = []
     range_start = nums[0]
     prev_num = nums[0]
-    
+
     for num in nums[1:] + [None]:
         if num is None or num != prev_num + 1:
             if prev_num == range_start:
@@ -363,7 +382,7 @@ def format_verse_numbers(verse_nums_str):
                 ranges.append(f"{range_start}-{prev_num}")
             range_start = num
         prev_num = num if num is not None else prev_num
-    
+
     return ','.join(ranges)
 
 def format_bible_results(bible_search_results, language='en'):
@@ -385,7 +404,6 @@ def format_bible_results(bible_search_results, language='en'):
         chapter = metadata.get("chapter")
         verse_nums_str = metadata.get("verse_nums", "")
         # Identify the REAL verses in the chunk content to handle potential metadata inaccuracies.
-        from bible_lookup import get_real_verse_nums
         real_verse_nums = get_real_verse_nums(book_code, chapter, r[0].page_content)
         
         if real_verse_nums:

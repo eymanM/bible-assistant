@@ -78,10 +78,12 @@ def test_search_filtering_ot_only(client, mock_dependencies):
     bible_db = mock_dependencies['bible_db']
     
     doc_ot = MagicMock()
-    doc_ot.metadata = {"book": "GEN", "verse_nums": "1"}
+    doc_ot.page_content = "In the beginning"
+    doc_ot.metadata = {"book": "GEN", "chapter": "1", "verse_nums": "1"}
     
     doc_nt = MagicMock()
-    doc_nt.metadata = {"book": "MAT", "verse_nums": "1"}
+    doc_nt.page_content = "Blessed are the poor"
+    doc_nt.metadata = {"book": "MAT", "chapter": "5", "verse_nums": "3"}
     
     # Mock return both
     bible_db.similarity_search_with_relevance_scores.return_value = [(doc_ot, 0.9), (doc_nt, 0.9)]
@@ -110,3 +112,13 @@ def test_search_error_handling(client, mock_dependencies):
     assert response.status_code == 200
     assert "event: results" in response.data.decode('utf-8')
     # Should contain empty result lists
+
+
+def test_search_invalid_language(client):
+    response = client.post('/search', json={
+        'query': 'hope',
+        'settings': {'language': 'de'}
+    })
+
+    assert response.status_code == 400
+    assert b'Invalid language' in response.data

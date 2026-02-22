@@ -1,12 +1,13 @@
 import json
 import logging
-import traceback
 from concurrent.futures import ThreadPoolExecutor
+
 from constants import *
-from utils import setup_llms, translate_query, format_bible_results, search_and_format_commentaries
+from utils import translate_query, format_bible_results, search_and_format_commentaries
 
 # Initialize Executor for SearchService
 executor = ThreadPoolExecutor(max_workers=8)
+
 
 class SearchService:
     def __init__(self, bible_db, commentary_db, llm_insights, llm_translate):
@@ -18,16 +19,17 @@ class SearchService:
     def bible_search_task(self, query, language, include_ot, include_nt):
         if not (include_ot or include_nt):
             return []
-            
+
         try:
             # Bible Search is fast
             results = self.bible_db.similarity_search_with_relevance_scores(query, k=3)
-            
+
             # Filter
             filtered_results = []
             for hit in results:
                 book = hit[0].metadata.get('book')
-                if not book: continue
+                if not book:
+                    continue
 
                 # Relevance check
                 if hit[1] < 0.84:
@@ -37,7 +39,7 @@ class SearchService:
                     filtered_results.append(hit)
                 elif include_nt and book in NT_BOOKS:
                     filtered_results.append(hit)
-            
+
             return format_bible_results(filtered_results, language=language)
         except Exception as e:
             logging.error(f"Error in bible_search_task: {e}")
@@ -46,10 +48,10 @@ class SearchService:
     def commentary_search_task(self, query, language):
         # This includes inner translation if needed
         return search_and_format_commentaries(
-            self.commentary_db, 
-            query, 
-            language, 
-            self.llm_translate
+            self.commentary_db,
+            query,
+            language,
+            self.llm_translate,
         )
 
     def generate_results(self, search_query, settings):
@@ -63,74 +65,68 @@ class SearchService:
         include_nt = settings.get('newTestament', True)
         include_commentary = settings.get('commentary', True)
         include_insights = settings.get('insights', True)
-        
-        # 1. Start Initial Parallel Tasks: Translate Query
-        # We start translation immediately if needed
-        future_translate = None
-        if language == 'pl' and self.llm_translate:
-             future_translate = executor.submit(translate_query, search_query, self.llm_translate)
-        
-        # Resolve Translation
+
         effective_query = search_query
-        if future_translate:
+        if language == 'pl' and self.llm_translate:
             try:
-                effective_query = future_translate.result()
+                effective_query = translate_query(search_query, self.llm_translate)
             except Exception as e:
                 logging.error(f"Translation failed: {e}")
-        
-        # 2. Start Deep Parallel Search (Bible & Commentary)
+
+        # Start parallel search (Bible & Commentary)
         future_bible = executor.submit(
-            self.bible_search_task, 
-            effective_query, 
-            language, 
-            include_ot, 
-            include_nt
+            self.bible_search_task,
+            effective_query,
+            language,
+            include_ot,
+            include_nt,
         )
-        
+
         future_commentary = None
         if include_commentary:
             future_commentary = executor.submit(
                 self.commentary_search_task,
                 effective_query,
-                language
+                language,
             )
 
-        # 3. Yield Incremental Results
-        
+        # Yield incremental results
+
         # A. Yield Bible (Fastest)
         bible_res = []
         try:
             bible_res = future_bible.result()
         except Exception as e:
             logging.error(f"Bible search failed: {e}")
-            
+
         # First Yield: Bible only
         yield f"event: results\ndata: {json.dumps({'bible_results': bible_res, 'commentary_results': []})}\n\n"
-        
+
         # B. Yield Commentary (Slower)
         commentary_res = []
-        if future_commentary:
+        if future_commentary is not None:
             try:
                 commentary_res = future_commentary.result()
             except Exception as e:
                 logging.error(f"Commentary search failed: {e}")
-        
-        # Second Yield: All Results
-        if future_commentary or commentary_res:
-             yield f"event: results\ndata: {json.dumps({'bible_results': bible_res, 'commentary_results': commentary_res})}\n\n"
 
-        # 4. Insights
-        if include_insights:
+            # Second Yield: All Results
+            yield f"event: results\ndata: {json.dumps({'bible_results': bible_res, 'commentary_results': commentary_res})}\n\n"
+
+        # Insights
+        if include_insights and self.llm_insights:
             yield from self.stream_insights(search_query, language, bible_res, commentary_res)
-            
+        elif include_insights and not self.llm_insights:
+            logging.info("Insights requested, but llm_insights is unavailable. Skipping insight generation.")
+
         yield "event: end\ndata: {}\n\n"
 
     def stream_insights(self, topic, language, bible_res, commentary_res):
         try:
             passages = "\n".join(bible_res)
             if commentary_res:
-                passages += f"\n\nCommentaries:\n" + "\n".join(commentary_res)
-            
+                passages += "\n\nCommentaries:\n" + "\n".join(commentary_res)
+
             if not passages.strip():
                 passages = "No relevant passages found."
 
@@ -139,7 +135,7 @@ class SearchService:
 
             for chunk in self.llm_insights.stream(llm_query):
                 content = chunk.content if hasattr(chunk, 'content') else str(chunk)
-                
+
                 # Handle structured content (list of dicts) from new Google models
                 if isinstance(content, list):
                     text_parts = []
@@ -149,7 +145,7 @@ class SearchService:
                         elif isinstance(part, str):
                             text_parts.append(part)
                     content = "".join(text_parts)
-                
+
                 if content:
                     data = json.dumps({'token': content})
                     yield f"event: token\ndata: {data}\n\n"
