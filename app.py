@@ -66,6 +66,14 @@ def _parse_search_settings(raw_settings):
     }
 
 
+# Read version from VERSION file
+def get_version():
+    try:
+        with open(os.path.join(os.path.dirname(__file__), 'VERSION'), 'r') as f:
+            return f.read().strip()
+    except Exception:
+        return "1.0.0"
+
 template = {
     "info": {
         "title": "Bible Assistant API",
@@ -74,7 +82,7 @@ template = {
             "name": "eymanM",
             "url": "https://github.com/eymanM",
         },
-        "version": "1.0.0"
+        "version": get_version()
     }
 }
 swagger = Swagger(app, template=template)

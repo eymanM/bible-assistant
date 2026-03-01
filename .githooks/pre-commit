@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# Run the version bumping script before committing
+python bump_version.py
+if [ $? -ne 0 ]; then
+    echo "Version bump failed. Aborting commit."
+    exit 1
+fi
+exit 0
