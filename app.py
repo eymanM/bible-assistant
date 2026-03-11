@@ -2,6 +2,9 @@ import os
 import logging
 import traceback
 from flask import Flask, request, jsonify, Response, stream_with_context
+import asyncio
+import queue
+import threading
 from dotenv import load_dotenv
 from flask_cors import CORS
 from flasgger import Swagger
@@ -112,6 +115,42 @@ def health_check():
     return jsonify({'status': 'healthy'}), 200
 
 
+def sync_bridge(async_gen_func, *args, **kwargs):
+    q = queue.Queue()
+
+    def run_loop():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            async def consume():
+                try:
+                    agen = async_gen_func(*args, **kwargs)
+                    async for item in agen:
+                        q.put(item)
+                except Exception as e:
+                    q.put(("error", e))
+            loop.run_until_complete(consume())
+        finally:
+            q.put(("done", None))
+            loop.close()
+
+    t = threading.Thread(target=run_loop)
+    t.start()
+
+    while True:
+        item = q.get()
+        if isinstance(item, tuple) and len(item) == 2:
+            typ, val = item
+            if typ == "error":
+                raise val
+            elif typ == "done":
+                break
+            else:
+                yield item
+        else:
+            yield item
+
+
 @app.route('/search', methods=['POST'])
 def search():
     """
@@ -174,7 +213,7 @@ def search():
             return jsonify({'error': str(exc)}), 400
 
         return Response(
-            stream_with_context(search_service.generate_results(search_query, settings)),
+            stream_with_context(sync_bridge(search_service.generate_results, search_query, settings)),
             mimetype='text/event-stream',
         )
 
