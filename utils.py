@@ -65,12 +65,14 @@ def setup_db(persist_directory, query_instruction):
         embedding_function=embeddings,
     )
 
-def perform_commentary_search(commentary_db, search_query):
+import asyncio
+
+async def perform_commentary_search(commentary_db, search_query):
     search_results = []
     
-    def search_author(author):
+    async def search_author(author):
         try:
-            results = commentary_db.similarity_search_with_relevance_scores(
+            results = await commentary_db.asimilarity_search_with_relevance_scores(
                 search_query,
                 k=1,
                 filter={FATHER_NAME: author}
@@ -81,10 +83,8 @@ def perform_commentary_search(commentary_db, search_query):
             logging.error(f"Author search generated an exception for {author}: {exc}")
         return []
 
-    # Use ThreadPoolExecutor to search in parallel
-    # Chroma/DuckDB are usually thread-safe for reading
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        results = executor.map(search_author, CHURCH_FATHERS)
+    # Use asyncio.gather to search in parallel
+    results = await asyncio.gather(*(search_author(author) for author in CHURCH_FATHERS))
         
     for res in results:
         if res:
@@ -95,34 +95,58 @@ def perform_commentary_search(commentary_db, search_query):
 import hashlib
 try:
     import psycopg2
+    from psycopg2.pool import ThreadedConnectionPool
     from psycopg2.extras import DictCursor
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     psycopg2 = None
+    ThreadedConnectionPool = None
     DictCursor = None
     PSYCOPG2_AVAILABLE = False
     logging.warning("psycopg2 not installed. Database caching disabled.")
 
-def get_db_connection():
+DB_POOL = None
+
+def init_db_pool():
+    global DB_POOL
     if not PSYCOPG2_AVAILABLE:
-        return None
+        return
 
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        return None
+        return
 
     try:
-        conn = psycopg2.connect(db_url)
-        return conn
+        DB_POOL = ThreadedConnectionPool(1, 15, db_url)
     except Exception as e:
-        logging.error(f"Database connection failed: {e}")
-        return None
+        logging.error(f"Database pool initialization failed: {e}")
+
+init_db_pool()
+
+import contextlib
+
+@contextlib.contextmanager
+def get_db_connection():
+    if not DB_POOL:
+        yield None
+        return
+        
+    conn = None
+    try:
+        conn = DB_POOL.getconn()
+        yield conn
+    except Exception as e:
+        logging.error(f"Failed to get connection from pool: {e}")
+        yield None
+    finally:
+        if conn:
+            DB_POOL.putconn(conn)
 
 
 class TranslationBatch(BaseModel):
     translations: List[str] = Field(description="A list of translated texts in Polish. The output list MUST have exactly the same number of elements as the input list. Each input string must have a corresponding translated string at the same index.")
 
-def translate_texts(texts, llm):
+async def translate_texts(texts, llm):
     """Translates a list of texts to Polish using the LLM, with DB caching and Structured Output."""
     if not llm or not texts:
         return texts
@@ -135,34 +159,33 @@ def translate_texts(texts, llm):
     if not translatable_entries:
         return texts
 
-    conn = get_db_connection()
     cached_translations = {}
     missing_texts = []
     missing_indices = []
 
     # 1. Check Cache
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                for idx, text in translatable_entries:
-                    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-                    cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'pl'", (text_hash,))
-                    result = cur.fetchone()
-
-                    if result:
-                        cached_translations[idx] = result[0]
-                    else:
-                        missing_texts.append(text)
-                        missing_indices.append(idx)
-        except Exception as e:
-            logging.error(f"Error checking cache: {e}")
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    for idx, text in translatable_entries:
+                        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                        cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'pl'", (text_hash,))
+                        result = cur.fetchone()
+    
+                        if result:
+                            cached_translations[idx] = result[0]
+                        else:
+                            missing_texts.append(text)
+                            missing_indices.append(idx)
+            except Exception as e:
+                logging.error(f"Error checking cache: {e}")
+                missing_texts = [text for _, text in translatable_entries]
+                missing_indices = [idx for idx, _ in translatable_entries]
+        else:
             missing_texts = [text for _, text in translatable_entries]
             missing_indices = [idx for idx, _ in translatable_entries]
-        finally:
-            conn.close()
-    else:
-        missing_texts = [text for _, text in translatable_entries]
-        missing_indices = [idx for idx, _ in translatable_entries]
+
 
     # 2. Translate Missing (Batch with Structured Output)
     if missing_texts:
@@ -173,7 +196,7 @@ def translate_texts(texts, llm):
             
             # Use Structured Output
             structured_llm = llm.with_structured_output(TranslationBatch)
-            batch_result = structured_llm.invoke(prompt)
+            batch_result = await structured_llm.ainvoke(prompt)
             
             if isinstance(batch_result, dict):
                 translated_batch = batch_result.get('translations', [])
@@ -196,7 +219,7 @@ def translate_texts(texts, llm):
                 try:
                     # Simple individual prompt
                     single_prompt = f"Translate this theological text to Polish. Maintain tone and meaning. Text: {text}"
-                    response = llm.invoke(single_prompt)
+                    response = await llm.ainvoke(single_prompt)
                     t_text = response.content if hasattr(response, 'content') else str(response)
                     translated_batch.append(t_text.strip())
                 except Exception as inner_e:
@@ -204,23 +227,21 @@ def translate_texts(texts, llm):
                     translated_batch.append(text) # Keep original on error
 
         # Save to DB
-        conn = get_db_connection()
-        if conn and translated_batch:
-            try:
-                with conn.cursor() as cur:
-                    for idx, text in enumerate(missing_texts):
-                        t_text = translated_batch[idx] if idx < len(translated_batch) else text
-                        t_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-                        cur.execute("""
-                            INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
-                            VALUES (%s, %s, %s, 'pl')
-                            ON CONFLICT (hash) DO NOTHING
-                        """, (t_hash, text, t_text))
-                    conn.commit()
-            except Exception as e:
-                logging.error(f"Error saving to cache: {e}")
-            finally:
-                conn.close()
+        with get_db_connection() as conn:
+            if conn and translated_batch:
+                try:
+                    with conn.cursor() as cur:
+                        for idx, text in enumerate(missing_texts):
+                            t_text = translated_batch[idx] if idx < len(translated_batch) else text
+                            t_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                            cur.execute("""
+                                INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
+                                VALUES (%s, %s, %s, 'pl')
+                                ON CONFLICT (hash) DO NOTHING
+                            """, (t_hash, text, t_text))
+                        conn.commit()
+                except Exception as e:
+                    logging.error(f"Error saving to cache: {e}")
 
         # Merge back
         if translated_batch:
@@ -238,7 +259,7 @@ def translate_texts(texts, llm):
         
     return final_translations
 
-def translate_query(query, llm):
+async def translate_query(query, llm):
     """Translates a search query to English using the LLM, with DB caching (en target)."""
     if not llm or not query:
         return query
@@ -247,22 +268,20 @@ def translate_query(query, llm):
     if not query:
         return query
 
-    conn = get_db_connection()
     cached_translation = None
     query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
 
     # 1. Check Cache (target language 'en' for queries)
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'en'", (query_hash,))
-                result = cur.fetchone()
-                if result:
-                    cached_translation = result[0]
-        except Exception as e:
-             logging.error(f"Error checking cache for query: {e}")
-        finally:
-             conn.close()
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT translated_text FROM bible_assistant.translations WHERE hash = %s AND language = 'en'", (query_hash,))
+                    result = cur.fetchone()
+                    if result:
+                        cached_translation = result[0]
+            except Exception as e:
+                 logging.error(f"Error checking cache for query: {e}")
     
     if cached_translation:
         return cached_translation
@@ -270,27 +289,25 @@ def translate_query(query, llm):
     # 2. Translate
     try:
         translation_query = QUERY_TRANSLATION_PROMPT.format(query=query)
-        response = llm.invoke(translation_query)
+        response = await llm.ainvoke(translation_query)
         # Handle different response types from langchain
         translated_text = response.content if hasattr(response, 'content') else str(response)
         translated_text = translated_text.strip()
         
         # 3. Save to DB
-        conn = get_db_connection()
-        if conn:
-            try:
-                with conn.cursor() as cur:
-                    # Use ON CONFLICT DO NOTHING
-                    cur.execute("""
-                        INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
-                        VALUES (%s, %s, %s, 'en')
-                        ON CONFLICT (hash) DO NOTHING
-                    """, (query_hash, query, translated_text))
-                conn.commit()
-            except Exception as e:
-                logging.error(f"Error saving query to cache: {e}")
-            finally:
-                conn.close()
+        with get_db_connection() as conn:
+            if conn:
+                try:
+                    with conn.cursor() as cur:
+                        # Use ON CONFLICT DO NOTHING
+                        cur.execute("""
+                            INSERT INTO bible_assistant.translations (hash, original_text, translated_text, language) 
+                            VALUES (%s, %s, %s, 'en')
+                            ON CONFLICT (hash) DO NOTHING
+                        """, (query_hash, query, translated_text))
+                    conn.commit()
+                except Exception as e:
+                    logging.error(f"Error saving query to cache: {e}")
         
         return translated_text
             
@@ -298,7 +315,7 @@ def translate_query(query, llm):
         logging.error(f"Translation failed: {e}")
         return query
 
-def search_and_format_commentaries(commentary_db, search_query, language, llm_translate):
+async def search_and_format_commentaries(commentary_db, search_query, language, llm_translate):
     """
     Performs search and translation/formatting.
     Designed to run in a thread to unblock other tasks.
@@ -306,7 +323,7 @@ def search_and_format_commentaries(commentary_db, search_query, language, llm_tr
     if not commentary_db:
         return []
     
-    commentary_results = perform_commentary_search(commentary_db, search_query)
+    commentary_results = await perform_commentary_search(commentary_db, search_query)
     commentary_results.sort(key=lambda x: x[1], reverse=True)
     commentary_results = commentary_results[:3]
     
@@ -320,7 +337,7 @@ def search_and_format_commentaries(commentary_db, search_query, language, llm_tr
              texts_to_translate.append(r[0].page_content)
         
         # Translate
-        translated_texts = translate_texts(texts_to_translate, llm_translate)
+        translated_texts = await translate_texts(texts_to_translate, llm_translate)
     
     formatted_results = []
     seen = set()
