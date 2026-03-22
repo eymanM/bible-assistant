@@ -23,8 +23,9 @@ def test_ai_translation():
     test_texts = ["In the beginning God created the heaven and the earth.", "God is love."]
     print(f"Translating: {test_texts}")
     
+    import asyncio
     try:
-        translated = translate_texts(test_texts, llm_translate)
+        translated = asyncio.run(translate_texts(test_texts, llm_translate))
         print(f"Result: {translated}")
         
         if len(translated) == 2 and translated[0] != test_texts[0]:

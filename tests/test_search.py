@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 import json
 
 def test_search_no_query(client):
@@ -42,8 +42,9 @@ def test_search_success(client, mock_dependencies):
     # The commentary loop in app.py iterates CHURCH_FATHERS and calls explicitly.
     # We can perform a simpler check: just ensure response contains expected data.
     
-    bible_db.similarity_search_with_relevance_scores.return_value = [(doc1, 0.9), (doc2, 0.9)]
-    commentary_db.similarity_search_with_relevance_scores.return_value = [] # Return empty for commentary to keep it simple
+    bible_db.asimilarity_search_with_relevance_scores = AsyncMock(return_value=[(doc1, 0.9), (doc2, 0.9)])
+    commentary_db.asimilarity_search_with_relevance_scores = AsyncMock(return_value=[]) # Return empty for commentary to keep it simple
+
 
     # Make request
     response = client.post('/search', json={'query': 'creation'})
@@ -86,7 +87,7 @@ def test_search_filtering_ot_only(client, mock_dependencies):
     doc_nt.metadata = {"book": "MAT", "chapter": "5", "verse_nums": "3"}
     
     # Mock return both
-    bible_db.similarity_search_with_relevance_scores.return_value = [(doc_ot, 0.9), (doc_nt, 0.9)]
+    bible_db.asimilarity_search_with_relevance_scores = AsyncMock(return_value=[(doc_ot, 0.9), (doc_nt, 0.9)])
     
     # Request with newTestament=False
     response = client.post('/search', json={
@@ -104,7 +105,7 @@ def test_search_error_handling(client, mock_dependencies):
     """Test that DB errors are handled gracefully"""
     bible_db = mock_dependencies['bible_db']
     # Force an exception
-    bible_db.similarity_search_with_relevance_scores.side_effect = Exception("DB Down")
+    bible_db.asimilarity_search_with_relevance_scores = AsyncMock(side_effect=Exception("DB Down"))
     
     response = client.post('/search', json={'query': 'crash'})
     

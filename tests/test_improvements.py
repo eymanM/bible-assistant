@@ -19,16 +19,24 @@ def test_generate_results_without_insights_model_skips_error_event():
         llm_translate=None,
     )
 
-    events = list(service.generate_results(
-        'hope',
-        {
-            'language': 'en',
-            'oldTestament': True,
-            'newTestament': True,
-            'commentary': False,
-            'insights': True,
-        },
-    ))
+    import asyncio
+    
+    async def collect_events():
+        events = []
+        async for event in service.generate_results(
+            'hope',
+            {
+                'language': 'en',
+                'oldTestament': True,
+                'newTestament': True,
+                'commentary': False,
+                'insights': True,
+            },
+        ):
+            events.append(event)
+        return events
+        
+    events = asyncio.run(collect_events())
 
     assert any('event: results' in event for event in events)
     assert any('event: end' in event for event in events)
