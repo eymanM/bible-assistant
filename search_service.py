@@ -1,13 +1,9 @@
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 from constants import *
 from utils import translate_query, format_bible_results, search_and_format_commentaries
-
-# Initialize Executor for SearchService
-executor = ThreadPoolExecutor(max_workers=8)
-
 
 class SearchService:
     def __init__(self, bible_db, commentary_db, llm_insights, llm_translate):
@@ -16,13 +12,13 @@ class SearchService:
         self.llm_insights = llm_insights
         self.llm_translate = llm_translate
 
-    def bible_search_task(self, query, language, include_ot, include_nt):
+    async def bible_search_task(self, query, language, include_ot, include_nt):
         if not (include_ot or include_nt):
             return []
 
         try:
-            # Bible Search is fast
-            results = self.bible_db.similarity_search_with_relevance_scores(query, k=3)
+            # Async Bible Search
+            results = await self.bible_db.asimilarity_search_with_relevance_scores(query, k=3)
 
             # Filter
             filtered_results = []
@@ -45,16 +41,16 @@ class SearchService:
             logging.error(f"Error in bible_search_task: {e}")
             return []
 
-    def commentary_search_task(self, query, language):
+    async def commentary_search_task(self, query, language):
         # This includes inner translation if needed
-        return search_and_format_commentaries(
+        return await search_and_format_commentaries(
             self.commentary_db,
             query,
             language,
             self.llm_translate,
         )
 
-    def generate_results(self, search_query, settings):
+    async def generate_results(self, search_query, settings):
         """
         Main Generator Function.
         Yields events: 'results', 'token', 'end', 'error'
@@ -69,59 +65,46 @@ class SearchService:
         effective_query = search_query
         if language == 'pl' and self.llm_translate:
             try:
-                effective_query = translate_query(search_query, self.llm_translate)
+                effective_query = await translate_query(search_query, self.llm_translate)
             except Exception as e:
                 logging.error(f"Translation failed: {e}")
 
-        # Start parallel search (Bible & Commentary)
-        future_bible = executor.submit(
-            self.bible_search_task,
-            effective_query,
-            language,
-            include_ot,
-            include_nt,
-        )
-
-        future_commentary = None
+        # Gather parallel tasks
+        tasks = [self.bible_search_task(effective_query, language, include_ot, include_nt)]
         if include_commentary:
-            future_commentary = executor.submit(
-                self.commentary_search_task,
-                effective_query,
-                language,
-            )
+            tasks.append(self.commentary_search_task(effective_query, language))
+            
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Parse results
+        bible_res = results[0] if not isinstance(results[0], Exception) else []
+        if isinstance(results[0], Exception):
+            logging.error(f"Bible search failed: {results[0]}")
+            
+        commentary_res = []
+        if include_commentary and len(results) > 1:
+            commentary_res = results[1] if not isinstance(results[1], Exception) else []
+            if isinstance(results[1], Exception):
+                logging.error(f"Commentary search failed: {results[1]}")
 
-        # Yield incremental results
-
-        # A. Yield Bible (Fastest)
-        bible_res = []
-        try:
-            bible_res = future_bible.result()
-        except Exception as e:
-            logging.error(f"Bible search failed: {e}")
-
-        # First Yield: Bible only
+        # First Yield: Bible only (we can still do this iteratively if we handled tasks dynamically,
+        # but gather awaits all. To preserve streaming UI, we yield the complete object)
         yield f"event: results\ndata: {json.dumps({'bible_results': bible_res, 'commentary_results': []})}\n\n"
 
-        # B. Yield Commentary (Slower)
-        commentary_res = []
-        if future_commentary is not None:
-            try:
-                commentary_res = future_commentary.result()
-            except Exception as e:
-                logging.error(f"Commentary search failed: {e}")
-
-            # Second Yield: All Results
+        # Second Yield: All Results
+        if include_commentary:
             yield f"event: results\ndata: {json.dumps({'bible_results': bible_res, 'commentary_results': commentary_res})}\n\n"
 
         # Insights
         if include_insights and self.llm_insights:
-            yield from self.stream_insights(search_query, language, bible_res, commentary_res)
+            async for chunk in self.stream_insights(search_query, language, bible_res, commentary_res):
+                yield chunk
         elif include_insights and not self.llm_insights:
             logging.info("Insights requested, but llm_insights is unavailable. Skipping insight generation.")
 
         yield "event: end\ndata: {}\n\n"
 
-    def stream_insights(self, topic, language, bible_res, commentary_res):
+    async def stream_insights(self, topic, language, bible_res, commentary_res):
         try:
             passages = "\n".join(bible_res)
             if commentary_res:
@@ -133,7 +116,7 @@ class SearchService:
             summary_prompt = BIBLE_SUMMARY_PROMPT_PL if language == 'pl' else BIBLE_SUMMARY_PROMPT_EN
             llm_query = summary_prompt.format(topic=topic, passages=passages)
 
-            for chunk in self.llm_insights.stream(llm_query):
+            async for chunk in self.llm_insights.astream(llm_query):
                 content = chunk.content if hasattr(chunk, 'content') else str(chunk)
 
                 # Handle structured content (list of dicts) from new Google models
